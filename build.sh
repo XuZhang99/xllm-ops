@@ -455,6 +455,4 @@ else
     cmake_config
     build_package
 fi
-script_path=$(realpath $(dirname $0))
-${script_path}/xllm_ops.run
-# ${script_path}/xllm_ops.run --install-path=${ASCEND_OPP_PATH}/vendors/xllm
+./xllm_ops.run
