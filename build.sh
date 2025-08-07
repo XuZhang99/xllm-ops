@@ -455,4 +455,5 @@ else
     cmake_config
     build_package
 fi
+unset ASCEND_CUSTOM_OPP_PATH
 ./xllm_ops.run

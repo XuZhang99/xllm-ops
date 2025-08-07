@@ -1,5 +1,5 @@
 add_ops_compile_options(
-    OP_NAME replace_token
+    OP_NAME ReplaceToken
     OPTIONS --cce-auto-sync=on
             -Wno-deprecated-declarations
             -Werror
