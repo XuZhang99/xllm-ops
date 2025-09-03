@@ -89,11 +89,13 @@ function convert_string() {
 }
 
 function set_env() {
+    echo "TILING_KEY---lmx ------ : ${TILING_KEY}"
     CONVERT_TILING_KEY="$(convert_string ${TILING_KEY})"
-
+    echo "CONVERT_TILING_KEY---lmx ------ : ${CONVERT_TILING_KEY}"
     CONVERT_OPS_COMPILE_OPTIONS="$(convert_string ${OPS_COMPILE_OPTIONS})"
-
+    echo "CONVERT_OPS_COMPILE_OPTIONS---lmx ------ : ${CONVERT_OPS_COMPILE_OPTIONS}"
     CONVERT_ASCEND_COMPUTE_UNIT="$(convert_string ${ASCEND_COMPUTE_UNIT})"
+    echo "CONVERT_ASCEND_COMPUTE_UNIT---lmx ------ : ${CONVERT_ASCEND_COMPUTE_UNIT}"
 }
 
 function build() {

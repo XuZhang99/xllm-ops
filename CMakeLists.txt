@@ -9,6 +9,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+
 project(xllm_ops)
 
 option(BUILD_OPEN_PROJECT         "Build open ascend ops project."  ON)
@@ -21,7 +22,7 @@ include(cmake/config.cmake)
 include(cmake/func.cmake)
 include(cmake/intf.cmake)
 
-
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 set(_op_host_aclnn_link
         $<BUILD_INTERFACE:intf_pub>
         exe_graph
@@ -478,6 +479,7 @@ foreach (op_dir ${OP_DIR_LIST})
             ${op_dir}/op_kernel/*.cpp
             ${op_dir}/op_kernel/*.h
     )
+    message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 
     install(FILES ${KERNEL_FILES}
             DESTINATION ${IMPL_DYNAMIC_INSTALL_DIR}

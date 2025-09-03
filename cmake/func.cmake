@@ -313,6 +313,7 @@ function(add_ops_src_copy)
     endif ()
 
     file(GLOB SRC_FILES ${SRC_COPY_SRC}/*)
+    message(STATUS "SRC_FILES: ${SRC_FILES}")
     list(FILTER SRC_FILES EXCLUDE REGEX "op_host")
     if (NOT TARGET ${SRC_COPY_TARGET_NAME})
         set(_BUILD_FLAG ${SRC_COPY_DST}/${SRC_COPY_TARGET_NAME}.done)

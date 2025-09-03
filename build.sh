@@ -62,7 +62,12 @@ if (( dev_atlas_a2 > 0 )); then
     dev_conf="ascend910b;"$dev_conf
 fi
 
-export CPLUS_INCLUDE_PATH=/usr/include/c++/12/x86_64-openEuler-linux:/usr/include/c++/12
+dev_atlas_a3=$(grep -rn AddConfig\(\"ascend910_93\"\)|wc -l)
+if (( dev_atlas_a3 > 0 )); then
+    dev_conf="ascend910_93;"$dev_conf
+fi
+
+export CPLUS_INCLUDE_PATH=/usr/include/c++/12/x86_64-openEuler-linux:/usr/include/c++/12:/usr/include/c++/12/aarch64-openEuler-linux
 unset ASCEND_CUSTOM_OPP_PATH
 # 替换工程配置文件内设备支持配置
 sed -i "/\"ASCEND_COMPUTE_UNIT\": {/,/}/ { /\"value\":/ s/\"value\": \".*\"/\"value\": \"$dev_conf\"/ }" CMakePresets.json
