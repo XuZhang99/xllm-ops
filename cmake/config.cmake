@@ -207,21 +207,6 @@ if (BUILD_OPEN_PROJECT)
         endif ()
 
         string(REPLACE ";" "::" EP_ASCEND_COMPUTE_UNIT "${ASCEND_COMPUTE_UNIT}")
-        message(STATUS "bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/scripts/prepare.sh
-                -s ${CMAKE_CURRENT_SOURCE_DIR}
-                -b ${CMAKE_CURRENT_BINARY_DIR}/prepare_build
-                -p ${ASCEND_CANN_PACKAGE_PATH}
-                --autogen-dir ${ASCEND_AUTOGEN_DIR}
-                --build-open-project ${BUILD_OPEN_PROJECT}
-                --binary-out-dir ${ASCEND_BINARY_OUT_DIR}
-                --impl-out-dir ${ASCEND_IMPL_OUT_DIR}
-                --op-build-tool ${OP_BUILD_TOOL}
-                --ascend-cmake-dir ${ASCEND_CMAKE_DIR}
-                --tiling-key ${EP_TILING_KEY}
-                --ops-compile-options ${EP_OPS_COMPILE_OPTIONS}
-                --check-compatible ${CHECK_COMPATIBLE}
-                --ascend-compute_unit ${EP_ASCEND_COMPUTE_UNIT}
-                --op_debug_config ${OP_DEBUG_CONFIG}")
         execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/scripts/prepare.sh
                 -s ${CMAKE_CURRENT_SOURCE_DIR}
                 -b ${CMAKE_CURRENT_BINARY_DIR}/prepare_build
