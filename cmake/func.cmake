@@ -75,7 +75,7 @@ function(op_add_subdirectory OP_LIST OP_DIR_LIST)
     set(_OP_DIR_LIST)
     # 定义待扫描的目录列表
     set(SCAN_DIRS
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/xllm_ops
     )
     # 遍历每个待扫描的目录
     foreach(scan_dir ${SCAN_DIRS})
