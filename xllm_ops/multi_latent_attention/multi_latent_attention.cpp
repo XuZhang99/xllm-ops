@@ -1,5 +1,5 @@
 #include "kernel_operator.h"
-#include "mla.h"
+#include "multi_latent_attention.h"
 #include "lib/matmul_intf.h"
 
 extern "C" __global__ __aicore__ void multi_latent_attention(GM_ADDR query, GM_ADDR queryRope, GM_ADDR kvCache,

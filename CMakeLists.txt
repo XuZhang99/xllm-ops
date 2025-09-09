@@ -265,6 +265,7 @@ if (base_aclnn_srcs)
             get_filename_component(name_without_ext ${_src} NAME_WE)
 
             string(REGEX REPLACE "_def$" "" _op_name ${name_without_ext})
+            string(REGEX REPLACE "_cpu$" "" _op_name ${_op_name})
             list(APPEND generate_aclnn_srcs ${base_aclnn_binary_dir}/aclnn_${_op_name}.cpp)
             list(APPEND generate_aclnn_headers ${base_aclnn_binary_dir}/aclnn_${_op_name}.h)
             list(APPEND generate_proto_srcs    ${generate_proto_dir}/${_op_name}_proto.cpp)
@@ -287,6 +288,7 @@ if (base_aclnn_inner_srcs)
         if (is_match)
             get_filename_component(name_without_ext ${_src} NAME_WE)
             string(REGEX REPLACE "_def$" "" _op_name ${name_without_ext})
+            string(REGEX REPLACE "_cpu$" "" _op_name ${_op_name})
             list(APPEND generate_aclnn_inner_srcs ${base_aclnn_binary_dir}/inner/aclnnInner_${_op_name}.cpp)
             list(APPEND generate_proto_srcs    ${generate_proto_dir}/inner/${_op_name}_proto.cpp)
             list(APPEND generate_proto_headers ${generate_proto_dir}/inner/${_op_name}_proto.h)
@@ -308,6 +310,7 @@ if (base_aclnn_exclude_srcs)
         if (is_match)
             get_filename_component(name_without_ext ${_src} NAME_WE)
             string(REGEX REPLACE "_def$" "" _op_name ${name_without_ext})
+            string(REGEX REPLACE "_cpu$" "" _op_name ${_op_name})
             list(APPEND generate_exclude_proto_srcs    ${generate_proto_dir}/exc/${_op_name}_proto.cpp)
             list(APPEND generate_proto_srcs            ${generate_proto_dir}/exc/${_op_name}_proto.cpp)
             list(APPEND generate_proto_headers         ${generate_proto_dir}/exc/${_op_name}_proto.h)
@@ -476,9 +479,15 @@ foreach (op_dir ${OP_DIR_LIST})
     get_filename_component(_op_name "${op_dir}" NAME)
 
     file(GLOB KERNEL_FILES
-            ${op_dir}/op_kernel/*.cpp
-            ${op_dir}/op_kernel/*.h
+            ${op_dir}/*.cpp
+            ${op_dir}/*.h
     )
+    list(FILTER KERNEL_FILES EXCLUDE REGEX ".*_tiling.h|.*_cpu.cpp|.*_tiling.cc|.*_l0.cpp|.*_l0.h|.*sort.h|.*sort.cpp")   
+    if (op_dir MATCHES "pp_mat_mul")
+        list(FILTER KERNEL_FILES EXCLUDE REGEX ".*_common_tiling.h|.*_default.h|.*_default.cpp|.*_info.h")
+    elseif (op_dir MATCHES "multi_latent_attention")
+        list(FILTER KERNEL_FILES EXCLUDE REGEX ".*common.h|.compare.h|.*math*|.*mla.h|.*_dependency*|.*_impl*")
+    endif ()
     message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 
     install(FILES ${KERNEL_FILES}

@@ -13,7 +13,7 @@
 #include "mixkernels/include/iterator.h"
 #include "mixkernels/include/mma.h"
 #include "mixkernels/include/utils.h"
-#include "fa_common.h"
+#include "multi_latent_attention_npu.h"
 
 #ifdef __CCE_KT_TEST__
 #define __aicore__
