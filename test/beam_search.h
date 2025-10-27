@@ -25,7 +25,7 @@ limitations under the License.
 #include <vector>
 #include <functional>
 #include "base/utils_tensor.h"
-#include "aclnn_beam_search.h"
+#include "aclnn_beam_search_group.h"
 
 namespace beam_search {
 struct TensorShapes {
@@ -34,6 +34,7 @@ struct TensorShapes {
   std::vector<std::vector<int64_t>> top_tokens_shape;
   std::vector<std::vector<int64_t>> top_probs_shape;
   std::vector<std::vector<int64_t>> output_shape;
+  std::vector<std::vector<int64_t>> beam_prefix_shape;
 };
 class BeamSearchBase {
  public:
@@ -58,6 +59,7 @@ class BeamSearchBase {
     shapes.top_tokens_shape = {{n_sequences_, top_k_}};
     shapes.top_probs_shape = {{n_sequences_, top_k_}};
     shapes.output_shape = {{n_sequences_, 1}};
+    shapes.beam_prefix_shape = {{n_sequences_, 1}};
   }
 
   BeamSearchBase(int64_t beam_width,
@@ -77,6 +79,7 @@ class BeamSearchBase {
     shapes.top_tokens_shape = {{n_sequences_, top_k_}};
     shapes.top_probs_shape = {{n_sequences_, top_k_}};
     shapes.output_shape = {{n_sequences_, 1}};
+    shapes.beam_prefix_shape = {{n_sequences_, 1}};
   }
 
   void set_prob_generator(ProbGenerator gen) { prob_generator_ = std::move(gen); }
@@ -106,6 +109,14 @@ class BeamSearchBase {
     output_log_probs_torch = torch::zeros({n_sequences_, 1}, opt_f32);
     output_token_index_op = torch::zeros({n_sequences_, 1}, opt_i32);
     output_token_index_torch = torch::zeros({n_sequences_, 1}, opt_i32);
+    output_log_probs_torch = torch::zeros({n_sequences_, 1}, opt_f32);
+    output_token_ids_op = torch::zeros({n_sequences_, 1}, opt_i32);
+    output_token_index_op = torch::zeros({n_sequences_, 1}, opt_i32);
+    output_log_probs_op = torch::zeros({n_sequences_, 1}, opt_f32);
+    output_beam_count_prefix_sums_torch =
+        torch::zeros({n_sequences_, 1}, opt_i32);
+    output_beam_count_prefix_sums_op =
+        torch::zeros({n_sequences_, 1}, opt_i32);
   }
 
   int32_t beam_width_;
@@ -123,6 +134,8 @@ class BeamSearchBase {
   torch::Tensor output_token_ids_op;
   torch::Tensor output_token_index_op;
   torch::Tensor output_log_probs_op;
+  torch::Tensor output_beam_count_prefix_sums_torch;
+  torch::Tensor output_beam_count_prefix_sums_op;
 
   TensorShapes shapes;
 
@@ -138,13 +151,15 @@ class BeamSearchTorch {
     torch::Tensor candidate_scores = (expanded_log_probs + base.top_probs);
     candidate_scores = candidate_scores.view(
         {base.request_num_, base.beam_width_ * base.top_k_});
-    auto topk_result = at::topk(candidate_scores, base.top_k_, 1, true, true);
+    auto topk_result =
+        at::topk(candidate_scores, base.beam_width_, 1, true, true);
     torch::Tensor topk_scores = std::get<0>(topk_result);
     torch::Tensor topk_indices = std::get<1>(topk_result);
 
-    torch::Tensor selected_beam = at::floor_divide(topk_indices, base.top_k_);
+    torch::Tensor selected_beam =
+        at::floor_divide(topk_indices, base.top_k_).to(torch::kInt32);
     torch::Tensor selected_within_top =
-        at::remainder(topk_indices, base.top_k_);
+        at::remainder(topk_indices, base.top_k_).to(torch::kInt32);
     auto device = base.token_ids.device();
     auto options_long =
         torch::TensorOptions().dtype(torch::kLong).device(device);
@@ -152,19 +167,93 @@ class BeamSearchTorch {
         torch::arange(base.request_num_, options_long).view({-1, 1});
     torch::Tensor base_indices = (request_ids * base.beam_width_);
     torch::Tensor orig_seq_indices =
-        (base_indices + selected_beam).reshape({-1});
-
-    torch::Tensor selected_token_ids =
-        base.token_ids.index_select(0, orig_seq_indices);
+        (base_indices + selected_beam.to(torch::kLong)).reshape({-1});
     torch::Tensor selected_top =
         base.top_tokens.index_select(0, orig_seq_indices);
     torch::Tensor selected_within_top_flat =
         selected_within_top.reshape({-1}).to(torch::kLong);
     torch::Tensor next_tokens =
-        selected_top.gather(1, selected_within_top_flat.unsqueeze(1));
-    base.output_token_ids_torch = next_tokens;
-    base.output_token_index_torch = orig_seq_indices.view({-1,1});
-    base.output_log_probs_torch = topk_scores;
+        selected_top.gather(1, selected_within_top_flat.unsqueeze(1))
+            .reshape({base.request_num_, base.beam_width_})
+            .to(torch::kInt32);
+    torch::Tensor beam_ids =
+        selected_beam.reshape({base.request_num_, base.beam_width_});
+    torch::Tensor within_top =
+        selected_within_top.reshape({base.request_num_, base.beam_width_});
+    torch::Tensor scores =
+        topk_scores.to(torch::kFloat32).reshape({base.request_num_, base.beam_width_});
+
+    auto opt_i32 = torch::TensorOptions().dtype(torch::kInt32).device(device);
+    auto opt_f32 = torch::TensorOptions().dtype(torch::kFloat32).device(device);
+    std::vector<torch::Tensor> tokens_sorted_list;
+    std::vector<torch::Tensor> scores_sorted_list;
+    std::vector<torch::Tensor> index_sorted_list;
+    std::vector<torch::Tensor> prefix_list;
+
+    for (int32_t r = 0; r < base.request_num_; ++r) {
+      auto beam_ids_r = beam_ids[r].clone();
+      auto tokens_r = next_tokens[r].clone();
+      auto scores_r = scores[r].clone();
+      auto within_r = within_top[r].clone();
+
+      torch::Tensor counts = torch::zeros({base.beam_width_}, opt_i32);
+      auto beam_ids_ptr = beam_ids_r.data_ptr<int32_t>();
+      auto counts_ptr = counts.data_ptr<int32_t>();
+      for (int32_t j = 0; j < base.beam_width_; ++j) {
+        int32_t beam = beam_ids_ptr[j];
+        if (beam >= 0 && beam < base.beam_width_) {
+          counts_ptr[beam] += 1;
+        }
+      }
+
+      torch::Tensor prefix = torch::cumsum(counts, 0);
+      torch::Tensor start = prefix - counts;
+      torch::Tensor cursor = start.clone().to(opt_i32);
+      auto cursor_ptr = cursor.data_ptr<int32_t>();
+
+      torch::Tensor token_sorted = torch::zeros({base.beam_width_}, opt_i32);
+      torch::Tensor score_sorted =
+          torch::full({base.beam_width_},
+                      -std::numeric_limits<float>::infinity(), opt_f32);
+      torch::Tensor index_sorted =
+          torch::full({base.beam_width_}, -1, opt_i32);
+      auto token_out_ptr = token_sorted.data_ptr<int32_t>();
+      auto score_out_ptr = score_sorted.data_ptr<float>();
+      auto index_out_ptr = index_sorted.data_ptr<int32_t>();
+      auto token_in_ptr = tokens_r.data_ptr<int32_t>();
+      auto scores_r_ptr = scores_r.data_ptr<float>();
+
+      for (int32_t j = 0; j < base.beam_width_; ++j) {
+        int32_t beam = beam_ids_ptr[j];
+        if (beam < 0 || beam >= base.beam_width_) {
+          continue;
+        }
+        int32_t pos = cursor_ptr[beam];
+        if (pos >= base.beam_width_) {
+          continue;
+        }
+        cursor_ptr[beam] += 1;
+        token_out_ptr[pos] = token_in_ptr[j];
+        score_out_ptr[pos] = scores_r_ptr[j];
+        index_out_ptr[pos] = r * base.beam_width_ + beam;
+      }
+
+      tokens_sorted_list.push_back(token_sorted);
+      scores_sorted_list.push_back(score_sorted);
+      index_sorted_list.push_back(index_sorted);
+      // global prefix sum
+      prefix = prefix + r * base.beam_width_;
+      prefix_list.push_back(prefix);
+    }
+
+    base.output_token_ids_torch =
+        torch::stack(tokens_sorted_list).reshape({-1, 1});
+    base.output_log_probs_torch =
+        torch::stack(scores_sorted_list).reshape({-1, 1});
+    base.output_token_index_torch =
+        torch::stack(index_sorted_list).reshape({-1, 1});
+    base.output_beam_count_prefix_sums_torch =
+        torch::stack(prefix_list).reshape({-1, 1});
   }
 
  private:
@@ -183,6 +272,7 @@ class BeamSearchOp {
                                                    output_token_ids,
                                                    output_token_index,
                                                    output_log_probs,
+                                                   output_beam_count_prefix_sums,
                                                    stream),
                       "execute_beam_search_operator failed");
   }
@@ -193,6 +283,7 @@ class BeamSearchOp {
                                    aclTensor* output_token_ids,
                                    aclTensor* output_token_index,
                                    aclTensor* output_log_probs,
+                                   aclTensor* output_beam_count_prefix_sums,
                                    aclrtStream stream);
   void destroy_tensors() {
     aclDestroyTensor(token_ids);
@@ -202,6 +293,7 @@ class BeamSearchOp {
     aclDestroyTensor(output_token_ids);
     aclDestroyTensor(output_token_index);
     aclDestroyTensor(output_log_probs);
+    aclDestroyTensor(output_beam_count_prefix_sums);
   }
 
  private:
@@ -237,6 +329,12 @@ class BeamSearchOp {
                                         base.output_log_probs_op,
                                         &output_log_probs),
         "create output_log_probs_op Tensor failed");
+    CHECK_ACL_SUCCESS(
+        utils::create_tensor_from_torch(
+            base.shapes.beam_prefix_shape[0],
+            base.output_beam_count_prefix_sums_op,
+            &output_beam_count_prefix_sums),
+        "create output_beam_count_prefix_sums Tensor failed");
   }
   aclTensor* token_ids = nullptr;
   aclTensor* log_probs = nullptr;
@@ -245,6 +343,7 @@ class BeamSearchOp {
   aclTensor* output_token_ids = nullptr;
   aclTensor* output_token_index = nullptr;
   aclTensor* output_log_probs = nullptr;
+  aclTensor* output_beam_count_prefix_sums = nullptr;
   BeamSearchBase& base;
 };
 int BeamSearchOp::execute_beam_search_operator(aclTensor* token_ids,
@@ -254,19 +353,31 @@ int BeamSearchOp::execute_beam_search_operator(aclTensor* token_ids,
                                                aclTensor* output_token_ids,
                                                aclTensor* output_token_index,
                                                aclTensor* output_log_probs,
+                                               aclTensor* output_beam_count_prefix_sums,
                                                aclrtStream stream) {
   uint64_t workspaceSize = 0;
   aclOpExecutor* executor;
-  auto ret = aclnnBeamSearchGetWorkspaceSize(
-      log_probs, top_tokens, top_probs, output_token_ids,output_token_index, output_log_probs,&workspaceSize, &executor);
+  auto ret = aclnnBeamSearchGroupGetWorkspaceSize(
+      log_probs,
+      top_tokens,
+      top_probs,
+      output_token_ids,
+      output_token_index,
+      output_log_probs,
+      output_beam_count_prefix_sums,
+      &workspaceSize,
+      &executor);
   CHECK_ACL_SUCCESS(ret, "aclnn_beam_search_operator get workspace size failed");
   void* workspaceAddr = nullptr;
   if (workspaceSize > 0) {
     ret = aclrtMalloc(&workspaceAddr, workspaceSize, ACL_MEM_MALLOC_HUGE_FIRST);
     CHECK_ACL_SUCCESS(ret, "aclnn_beam_search_operator malloc workspace failed");
   }
-  ret = aclnnBeamSearch(workspaceAddr, workspaceSize, executor, stream);
-  
+  ret = aclnnBeamSearchGroup(workspaceAddr,
+                             workspaceSize,
+                             executor,
+                             stream);
+
   CHECK_ACL_SUCCESS(ret, "aclnn_beam_search_operator execute failed");
   ret = aclrtSynchronizeStream(stream);
   CHECK_ACL_SUCCESS(ret, "aclnn_beam_search_operator synchronize stream failed");

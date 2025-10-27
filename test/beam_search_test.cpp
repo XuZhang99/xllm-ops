@@ -39,14 +39,16 @@ protected:
 };
 
 TEST_F(BeamSearchTest, BasicCorrectness) {
-    // basic test：only set log_probs[0]=1, top_probs[0][0]=1
+    // basic test：only set log_probs[0]=1, top_probs[0][0]=1 per sequence
     beam_search::BeamSearchBase::ProbGenerator basic_gen =
         [](int64_t n_sequences, int64_t top_k, const torch::TensorOptions& opt_f32,
            torch::Tensor& log_probs, torch::Tensor& top_probs) {
             log_probs = torch::zeros({n_sequences, 1}, opt_f32);
             top_probs = torch::zeros({n_sequences, top_k}, opt_f32);
-            log_probs.index_put_({0, 0}, 1.0f);
-            top_probs.index_put_({0, 0}, 1.0f);
+            for (int64_t i = 0; i < n_sequences; ++i) {
+                log_probs[i][0] = 1.0;
+                top_probs[i][0] = 1.0;
+            }
         };
 
     beam_search::BeamSearchBase inputs(2, 2, 2, 2, basic_gen);
@@ -64,8 +66,15 @@ TEST_F(BeamSearchTest, BasicCorrectness) {
     auto out_op_index_cpu = inputs.output_token_index_op.to(torch::kCPU);
     auto out_torch_log_cpu = inputs.output_log_probs_torch.to(torch::kCPU).view({-1, 1});
     auto out_op_log_cpu = inputs.output_log_probs_op.to(torch::kCPU).view({-1, 1});
+    auto out_torch_prefix_cpu =
+        inputs.output_beam_count_prefix_sums_torch.to(torch::kCPU).view({-1, 1});
+    auto out_op_prefix_cpu =
+        inputs.output_beam_count_prefix_sums_op.to(torch::kCPU).view({-1, 1});
 
-    EXPECT_TRUE(torch::equal(out_torch_log_cpu, out_op_log_cpu)) << "Log probs mismatch";
+    EXPECT_TRUE(torch::equal(out_torch_log_cpu, out_op_log_cpu))
+        << "Log probs mismatch";
+    EXPECT_TRUE(torch::equal(out_torch_prefix_cpu, out_op_prefix_cpu))
+        << "Beam prefix mismatch";
 
     op_cann.destroy_tensors();
 }
@@ -96,21 +105,26 @@ void run_beam_search_test(int beam_width,
     auto out_op_index_cpu = inputs.output_token_index_op.to(torch::kCPU);
     auto out_torch_log_cpu = inputs.output_log_probs_torch.to(torch::kCPU).view({-1, 1});
     auto out_op_log_cpu = inputs.output_log_probs_op.to(torch::kCPU).view({-1, 1});
-
+    auto out_torch_prefix_cpu = inputs.output_beam_count_prefix_sums_torch.to(torch::kCPU).view({-1, 1});
+    auto out_op_prefix_cpu = inputs.output_beam_count_prefix_sums_op.to(torch::kCPU).view({-1, 1});
+ 
     bool all_equal = torch::equal(out_torch_cpu, out_op_cpu) &&
                      torch::equal(out_torch_index_cpu, out_op_index_cpu) &&
-                     torch::equal(out_torch_log_cpu, out_op_log_cpu);
+                     torch::equal(out_torch_log_cpu, out_op_log_cpu) &&
+                     torch::equal(out_torch_prefix_cpu, out_op_prefix_cpu);
     if (!all_equal) {
        int64_t out_mismatch_count = (out_torch_cpu != out_op_cpu).sum().item<int64_t>();
        int64_t out_index_mismatch_count = (out_torch_index_cpu != out_op_index_cpu).sum().item<int64_t>();
        int64_t out_log_mismatch_count = (out_torch_log_cpu != out_op_log_cpu).sum().item<int64_t>();
-       std::cout << "Mismatch counts for size: beam_width=" << beam_width
-                 << ", top_k=" << top_k << ", request_num=" << request_num
-                 << ", sequence_length=" << sequence_length << std::endl;
-       std::cout << "  output_token_ids mismatch count: " << out_mismatch_count << std::endl;
-       std::cout << "  output_token_index mismatch count: " << out_index_mismatch_count << std::endl;
-       std::cout << "  output_log_probs mismatch count: " << out_log_mismatch_count << std::endl;
-    }
+       int64_t out_prefix_mismatch_count = (out_torch_prefix_cpu != out_op_prefix_cpu).sum().item<int64_t>();
+        std::cout << "Mismatch counts for size: beam_width=" << beam_width
+                  << ", top_k=" << top_k << ", request_num=" << request_num
+                  << ", sequence_length=" << sequence_length << std::endl;
+        std::cout << "  output_token_ids mismatch count: " << out_mismatch_count << std::endl;
+        std::cout << "  output_token_index mismatch count: " << out_index_mismatch_count << std::endl;
+        std::cout << "  output_log_probs mismatch count: " << out_log_mismatch_count << std::endl;
+        std::cout << "  output_beam_prefix mismatch count: " << out_prefix_mismatch_count << std::endl;
+     }
     EXPECT_TRUE(all_equal)
         << "Failed for size: beam_width=" << beam_width
         << ", top_k=" << top_k << ", request_num=" << request_num
