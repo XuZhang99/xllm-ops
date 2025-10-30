@@ -1,0 +1,164 @@
+
+#include "cache_unshared_kv_tiling.h"
+#include "register/op_def_registry.h"
+#include "tiling/platform/platform_ascendc.h"
+
+
+enum InputIndex {
+    X_KEY_BLOCK = 0,
+    X_VALUE_BLOCK,
+    CURR_KEY,
+    CURR_VALUE,
+    DECODE_STEP
+};
+
+constexpr uint64_t DIM_0 = 0;
+constexpr uint64_t DIM_1 = 1;
+constexpr uint64_t DIM_2 = 2;
+constexpr uint64_t DIM_3 = 3;
+constexpr uint64_t MAX_USED_UB_SIZE = 95 * 1024;  // ub按190K，kv折半
+
+namespace optiling {
+
+static ge::graphStatus TilingFunc(gert::TilingContext* context)
+{
+    // 获取硬件信息
+    auto ascendcPlatform = platform_ascendc::PlatformAscendC(context->GetPlatformInfo());
+    uint32_t core_num = ascendcPlatform.GetCoreNumAiv();
+
+    CacheUnsharedKvTilingData tiling;
+    const gert::StorageShape* x_key_block_shape = context->GetInputShape(X_KEY_BLOCK);
+    uint32_t total_tokens = x_key_block_shape->GetStorageShape().GetDim(0);
+
+    uint32_t max_decode_step = x_key_block_shape->GetStorageShape().GetDim(2);
+    uint32_t head_num = x_key_block_shape->GetStorageShape().GetDim(1);
+    uint32_t head_dim = x_key_block_shape->GetStorageShape().GetDim(3);
+
+    // beam方向核间切分、N方向核内切分
+    // 按照UB利用率最大化计算单次最大任务
+    uint32_t copy_head_num_per_loop = MAX_USED_UB_SIZE / sizeof(int16_t) / head_dim;
+    uint32_t copy_repeat_times = (head_num + copy_head_num_per_loop - 1) / copy_head_num_per_loop;
+    uint32_t copy_head_num_tail = head_num % copy_head_num_per_loop;
+    uint32_t copy_beam_per_task = 1;
+
+    if (copy_head_num_per_loop > head_num) {
+        copy_head_num_per_loop = head_num;
+        copy_beam_per_task = MAX_USED_UB_SIZE / (head_num * head_dim * sizeof(int16_t));
+    }
+
+    if (copy_head_num_tail == 0) {
+        copy_head_num_tail = copy_head_num_per_loop;
+    }
+
+
+    uint32_t total_task = (total_tokens + copy_beam_per_task - 1) / copy_beam_per_task;
+    uint32_t used_core_num = std::min(total_task, core_num);
+    uint32_t block_head_stride = max_decode_step * head_dim;
+    uint32_t block_beam_stride = head_num * block_head_stride;
+
+    // std::cout << "tiling:total_tokens " << total_tokens << std::endl;
+    // std::cout << "tiling:batch " << batch << std::endl;
+    // std::cout << "tiling:beam_size " << beam_size << std::endl;
+    // std::cout << "tiling:head_num " << head_num << std::endl;
+    // std::cout << "tiling:head_dim " << head_dim << std::endl;
+    // std::cout << "tiling:decode_step " << decode_step << std::endl;
+    // std::cout << "tiling:max_decode_step " << max_decode_step << std::endl;
+    // std::cout << "tiling:total_task " << total_task << std::endl;
+    // std::cout << "tiling:used_core_num " << used_core_num << std::endl;
+    // std::cout << "tiling:copy_beam_per_task " << copy_beam_per_task << std::endl;
+    // std::cout << "tiling:copy_head_num_per_loop " << copy_head_num_per_loop << std::endl;
+    // std::cout << "tiling:copy_repeat_times " << copy_repeat_times << std::endl;
+    // std::cout << "tiling:copy_head_num_tail " << copy_head_num_tail << std::endl;
+
+    tiling.set_total_tokens(total_tokens);
+    tiling.set_head_num(head_num);
+    tiling.set_head_dim(head_dim);
+    tiling.set_max_decode_step(max_decode_step);
+    tiling.set_used_core_num(used_core_num);
+    tiling.set_block_beam_stride(block_beam_stride);
+    tiling.set_block_head_stride(block_head_stride);
+    tiling.set_copy_head_num_per_loop(copy_head_num_per_loop);
+    tiling.set_copy_repeat_times(copy_repeat_times);
+    tiling.set_copy_head_num_tail(copy_head_num_tail);
+    tiling.set_copy_beam_per_task(copy_beam_per_task);
+    tiling.set_total_task(total_task);
+
+    context->SetBlockDim(used_core_num);
+    tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
+    context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
+
+    return ge::GRAPH_SUCCESS;
+}
+}
+
+
+namespace ge {
+static ge::graphStatus InferShape(gert::InferShapeContext* context)
+{
+    const gert::Shape* x1_shape = context->GetInputShape(0);
+    gert::Shape* y_shape = context->GetOutputShape(0);
+    *y_shape = *x1_shape;
+    return GRAPH_SUCCESS;
+}
+static ge::graphStatus InferDataType(gert::InferDataTypeContext *context)
+{
+const auto inputDataType = context->GetInputDataType(0);
+context->SetOutputDataType(0, inputDataType);
+return ge::GRAPH_SUCCESS;
+}
+}
+
+
+namespace ops {
+class CacheUnsharedKv : public OpDef {
+public:
+    explicit CacheUnsharedKv(const char* name) : OpDef(name)
+    {
+        this->Input("x_key_block")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Input("x_value_block")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Input("curr_key")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Input("curr_value")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Input("decode_step")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_INT32, ge::DT_INT32})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Output("select_key_block")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Output("select_value_block")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_FLOAT16, ge::DT_BF16})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+
+        this->SetInferShape(ge::InferShape).SetInferDataType(ge::InferDataType);
+
+        this->AICore()
+            .SetTiling(optiling::TilingFunc);
+        this->AICore().AddConfig("ascend910b");
+        this->AICore().AddConfig("ascend910_93");
+
+    }
+};
+
+OP_ADD(CacheUnsharedKv);
+}
