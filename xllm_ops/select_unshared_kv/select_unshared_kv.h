@@ -1,3 +1,18 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 #pragma once
 
 #include "kernel_operator.h"
@@ -9,16 +24,16 @@ constexpr uint32_t KEY_UB_OFFSET = 0;
 constexpr uint32_t KEY_UB_LEN = 95 * 1024;
 constexpr uint32_t VALUE_UB_OFFSET = 95 * 1024;
 constexpr uint32_t VALUE_UB_LEN = 95 * 1024;
-constexpr int8_t TASK_DIRECTION_UP = 1;   // 正向任务，src_beam_index > dst_beam_index
-constexpr int8_t TASK_DIRECTION_DOWN = -1; // 反向任务，src_beam_index < dst_beam_index
+constexpr int8_t TASK_DIRECTION_UP = 1;   // Forward task, src_beam_index > dst_beam_index
+constexpr int8_t TASK_DIRECTION_DOWN = -1; // Backward task, src_beam_index < dst_beam_index
 
 using namespace AscendC;
 
 struct beamParams {
-    int32_t b_idx{0};   // batch序号
-    int32_t beam_idx{0};  // beam序号
-    int32_t beam_token_num{0};  // beam中token数量
-    int32_t beam_inner_offset;  // 当前beam写出的offset起始位置
+    int32_t b_idx{0};   // batch index
+    int32_t beam_idx{0};  // beam index
+    int32_t beam_token_num{0};  // number of tokens in beam
+    int32_t beam_inner_offset;  // start offset of current beam writeout
     int8_t task_type;
 };
 
@@ -82,14 +97,14 @@ public:
                 break;
             }
             uint32_t beam_gm_offset = global_batch_idx * beam_size_val + global_beam_idx;
-            // 获取当前beamIndex及beamnum
+            // Get current beam index and beam number
             int32_t beam_token_num = global_beam_idx == 0 ? group_token_num_gm_.GetValue(beam_gm_offset)
                                     : group_token_num_gm_.GetValue(beam_gm_offset) - group_token_num_gm_.GetValue(beam_gm_offset - 1);
             int32_t beam_inner_offset = global_beam_idx == 0 ? 0 : group_token_num_gm_.GetValue(beam_gm_offset - 1);
             
-            // 判断是否有确实有task
+            // Check if there is a task
             bool has_task = true;
-            // 判断是否完全不存在对应类型的task
+            // Check if there is no task of the corresponding type
             if ((task_type == TASK_DIRECTION_UP && (global_beam_idx <= beam_inner_offset)) ||
                 (task_type == TASK_DIRECTION_DOWN && (global_beam_idx > (beam_inner_offset + beam_token_num - 1)))) {
                 has_task = false;
@@ -99,7 +114,7 @@ public:
                 if (calc_block == core_id) {
                     beam_params.b_idx = global_batch_idx;
                     beam_params.beam_idx = global_beam_idx;
-                    // 根据任务类型计算本次实际执行的任务数和写出地址起始偏移
+                    // Calculate the number of tasks actually executed and the start offset of the write address based on the task type
                     if (task_type == TASK_DIRECTION_UP) {
                         beam_params.beam_inner_offset = beam_inner_offset;
                         beam_params.beam_token_num = (beam_inner_offset + beam_token_num) > beam_params.beam_idx ?
@@ -134,7 +149,7 @@ public:
     {
         AscendC::TEventID event_id_mte2_to_mte3 = GetTPipePtr()->FetchEventID(AscendC::HardEvent::MTE2_MTE3);
         AscendC::TEventID event_id_mte3_to_mte2 = GetTPipePtr()->FetchEventID(AscendC::HardEvent::MTE3_MTE2);
-        // 正序处理+逆序处理
+        // Forward processing + backward processing
         int8_t loop_num = 2;
 
         for (size_t loop_idx = 0; loop_idx < loop_num; loop_idx++) {
@@ -156,10 +171,10 @@ public:
                                     src_beam_idx * tiling_.block_beam_stride;
                 LocalTensor<T1> key_ub_ = ubuf_.GetWithOffset<T1>(KEY_UB_LEN / sizeof(T1), KEY_UB_OFFSET);
                 LocalTensor<T1> value_ub_ = ubuf_.GetWithOffset<T1>(VALUE_UB_LEN / sizeof(T1), VALUE_UB_OFFSET);
-                // head_num分块
+                // head_num split
                 for (size_t i = 0; i < tiling_.copy_repeat_times; i++) {
                     uint32_t copy_head_num = (i == tiling_.copy_repeat_times - 1) ? tiling_.copy_head_num_tail : tiling_.copy_head_num_per_loop;
-                    // BNSD输入，用连续多搬代替非连续跳搬
+                    // BNSD input, use continuous multiple moves instead of non-continuous jump moves
                     uint32_t copy_len = copy_head_num * tiling_.max_decode_step * tiling_.head_dim;
                     uint32_t inner_offset = i * tiling_.copy_head_num_per_loop * tiling_.max_decode_step * tiling_.head_dim;
                     uint32_t src_offset = beam_src_offset + inner_offset;
@@ -169,14 +184,14 @@ public:
                         DataCopy(key_ub_, x_key_block_gm_[src_offset], copy_len);
                         DataCopy(value_ub_, x_value_block_gm_[src_offset], copy_len);
                     }
-                    // 核间读同步，防止写出时覆盖
+                    // Inter-core read synchronization to prevent overwrite when writing
                     CrossCoreSetFlag<0x0, PIPE_MTE2>(0x8);
                     CrossCoreWaitFlag(0x8);
                     if (beam_params.beam_token_num > 0) {
                         SetFlag<HardEvent::MTE2_MTE3>(event_id_mte2_to_mte3);
                         WaitFlag<HardEvent::MTE2_MTE3>(event_id_mte2_to_mte3);
                         for (size_t i = 0; i < beam_params.beam_token_num; i++) {
-                            // 搬出
+                            // Copy out
                             int32_t dst_beam_idx = beam_params.beam_inner_offset + i;
                             uint32_t dst_offset = beam_params.b_idx * block_batch_stride +
                                                 dst_beam_idx * tiling_.block_beam_stride + 

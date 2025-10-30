@@ -1,3 +1,18 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 #ifndef X_ATTN_CATLASS_KERNEL_H
 #define X_ATTN_CATLASS_KERNEL_H
 
@@ -777,9 +792,9 @@ class UnsharedFAInferKernel {
                                                           : (preLaunch * blockStackNum);
              // masked kvSeqlen loop
              // maskedStartIdx = AlignUp(kvSLoopNumNoMask, blockStackNum)
-             // kvSLoopNumTotal = kvSLoopNumNoMask  so maskedStartIdx 即 kvSIdx >= kvSLoopNumTotal
+             // kvSLoopNumTotal = kvSLoopNumNoMask  so maskedStartIdx means kvSIdx >= kvSLoopNumTotal
              for (uint32_t kvSIdx = maskedStartIdx; kvSIdx < kvSLoopNumTotal + preLaunchStackNum;) {
-                // nomask场景下 kvSIdx不会小于kvSLoopNumTotal 所以不会进入该if
+                // In no mask scenario, kvSIdx will not be less than kvSLoopNumTotal, so it will not enter this if
                  if ((kvSIdx < kvSLoopNumTotal) && (stackSeqCount <= totalStackSeqNum - 1)) {
                     //  stackSeqTile = maskedKvS;
                     //  uint32_t stackSeqTileRound = RoundUp(stackSeqTile, BLOCK_SIZE);

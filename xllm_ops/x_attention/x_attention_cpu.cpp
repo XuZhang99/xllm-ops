@@ -1,3 +1,18 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 #include "x_attention_tiling.h"
 #include "register/op_def_registry.h"
 #include "tiling/platform/platform_ascendc.h"
@@ -113,8 +128,8 @@ void TilingXAttentionFunc::SetWorkspaces()
                     * tiling_data_.get_numHeads()
                     * tiling_data_.get_embeddingSize()
                     * sizeof(int16_t);
-  // Attention占用空间
-  // TODO: 仅申请一块临时空间，影响preload功能，长序列场景需额外处理
+  // Attention occupied space
+  // TODO: Only apply for one temporary space, affecting preload function, long sequence scenario needs extra processing
   uint64_t mm1OutSize = (sharedBlockDim * WORKSPACE_BLOCK_SIZE_DB + 
                          unsharedBlockDim * UNSHARED_WORKSPACE_BLOCK_SIZE_DB)* sizeof(float);
   uint64_t smOnlineOutSize = (sharedBlockDim * WORKSPACE_BLOCK_SIZE_DB +
@@ -128,7 +143,7 @@ void TilingXAttentionFunc::SetWorkspaces()
   tiling_data_.set_mm2OutSize(mm2OutSize);
   tiling_data_.set_updateSize(updateSize);
 
-  // combine所需输出占用空间
+  // combine required output occupied space
   uint64_t sumMaxSize = tiling_data_.get_numTokens() * tiling_data_.get_numHeads() * sizeof(float) * NUM2;
   uint64_t attnOutSize = qoSize * 2;
   uint64_t combineWorkspaceSize = sumMaxSize + attnOutSize;
@@ -146,8 +161,8 @@ void TilingXAttentionFunc::FillCombineScaleTilingData()
                     tiling_data_.get_numHeads();
   uint32_t columnSize = tiling_data_.get_embeddingSize();
   
-  uint32_t rowNumPerCore = rowNum / cubeCoreNum;  // 每个核心的基础行数
-  uint32_t rowNumTailPerCore = rowNum % cubeCoreNum;  // 剩余行数，需要分配给前几个核心
+  uint32_t rowNumPerCore = rowNum / cubeCoreNum;  // number of rows per core
+  uint32_t rowNumTailPerCore = rowNum % cubeCoreNum;  // remaining rows, need to be allocated to the first few cores
   tiling_data_.set_combineFormerCoreNum(rowNumTailPerCore);
   tiling_data_.set_combineFormerRowNum(rowNumPerCore + 1);
   tiling_data_.set_combineTailRowNum(rowNumPerCore);
@@ -225,7 +240,7 @@ ge::graphStatus TilingXAttentionFunc::FillBasicTilingData()
 
 ge::graphStatus TilingXAttentionFunc::RunTiling()
 {
-  // 获取platform硬件信息
+  // Get platform hardware information
   std::cout<< "[CUSTOM INFO] get in runtiling" << std::endl;
   auto platform_info =
       platform_ascendc::PlatformAscendC(tiling_context_->GetPlatformInfo());
@@ -244,7 +259,7 @@ ge::graphStatus TilingXAttentionFunc::RunTiling()
   FillCombineScaleTilingData();
   SetWorkspaces();
 
-  // 保存tilingData
+  // Save tilingData
   tiling_data_.SaveToBuffer(tiling_context_->GetRawTilingData()->GetData(),
                             tiling_context_->GetRawTilingData()->GetCapacity());
   tiling_context_->GetRawTilingData()->SetDataSize(tiling_data_.GetDataSize());

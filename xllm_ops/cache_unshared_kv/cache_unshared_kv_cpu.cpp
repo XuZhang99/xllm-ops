@@ -1,3 +1,17 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 
 #include "cache_unshared_kv_tiling.h"
 #include "register/op_def_registry.h"
@@ -16,16 +30,17 @@ constexpr uint64_t DIM_0 = 0;
 constexpr uint64_t DIM_1 = 1;
 constexpr uint64_t DIM_2 = 2;
 constexpr uint64_t DIM_3 = 3;
-constexpr uint64_t MAX_USED_UB_SIZE = 95 * 1024;  // ub按190K，kv折半
+// ub is 190K, kv is halved
+constexpr uint64_t MAX_USED_UB_SIZE = 95 * 1024;
 
 namespace optiling {
 
 static ge::graphStatus TilingFunc(gert::TilingContext* context)
 {
-    // 获取硬件信息
+    // Get hardware information
     auto ascendcPlatform = platform_ascendc::PlatformAscendC(context->GetPlatformInfo());
     uint32_t core_num = ascendcPlatform.GetCoreNumAiv();
-
+    
     CacheUnsharedKvTilingData tiling;
     const gert::StorageShape* x_key_block_shape = context->GetInputShape(X_KEY_BLOCK);
     uint32_t total_tokens = x_key_block_shape->GetStorageShape().GetDim(0);
@@ -34,8 +49,8 @@ static ge::graphStatus TilingFunc(gert::TilingContext* context)
     uint32_t head_num = x_key_block_shape->GetStorageShape().GetDim(1);
     uint32_t head_dim = x_key_block_shape->GetStorageShape().GetDim(3);
 
-    // beam方向核间切分、N方向核内切分
-    // 按照UB利用率最大化计算单次最大任务
+    // Inter-core partitioning along the beam direction, intra-core partitioning along the N direction
+    // Calculate the maximum single task based on UB utilization maximization
     uint32_t copy_head_num_per_loop = MAX_USED_UB_SIZE / sizeof(int16_t) / head_dim;
     uint32_t copy_repeat_times = (head_num + copy_head_num_per_loop - 1) / copy_head_num_per_loop;
     uint32_t copy_head_num_tail = head_num % copy_head_num_per_loop;

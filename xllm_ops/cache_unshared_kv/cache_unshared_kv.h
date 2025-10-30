@@ -1,3 +1,18 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 #pragma once
 
 #include "kernel_operator.h"
@@ -60,7 +75,7 @@ public:
 
         LocalTensor<T> key_ub_ = ubuf_.GetWithOffset<T>(KEY_UB_LEN / sizeof(T), KEY_UB_OFFSET);
         LocalTensor<T> value_ub_ = ubuf_.GetWithOffset<T>(VALUE_UB_LEN / sizeof(T), VALUE_UB_OFFSET);
-        // 任务层的循环
+        // Task layer loop
         for (size_t task_idx = core_id; task_idx < tiling_.total_task; task_idx+=used_core_num)
         {
             uint32_t copy_tokens = (task_idx == tiling_.total_task - 1) ? 
@@ -69,7 +84,7 @@ public:
             uint32_t beam_src_offset = task_idx * tiling_.copy_beam_per_task * tiling_.head_num * tiling_.head_dim;
             uint32_t beam_dst_offset = beam_src_offset * tiling_.max_decode_step;
 
-            // head_num循环
+            // head_num loop
             for (size_t inner_loop_idx = 0; inner_loop_idx < tiling_.copy_repeat_times; inner_loop_idx++)
             {
                 uint32_t copy_head_num = (inner_loop_idx == tiling_.copy_repeat_times - 1) ? 
@@ -78,7 +93,7 @@ public:
                 uint32_t inner_src_offset = inner_loop_idx * tiling_.copy_head_num_per_loop * tiling_.head_dim;
                 uint32_t src_offset = beam_src_offset + inner_src_offset;
                 uint32_t copy_len = copy_tokens * copy_head_num * tiling_.head_dim;
-                // 拷入
+                // Copy in
                 SetFlag<HardEvent::MTE3_MTE2>(event_id_mte3_to_mte2);
                 WaitFlag<HardEvent::MTE3_MTE2>(event_id_mte3_to_mte2);
                 DataCopy(key_ub_, cur_key_gm_[src_offset], copy_len);

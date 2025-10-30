@@ -1,3 +1,18 @@
+/* Copyright 2025 The xLLM Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://gitcode.com/xLLM-AI/xllm_ops/blob/main/LICENSE
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 #ifndef X_ATTN_CATLASS_HELPER_H
 #define X_ATTN_CATLASS_HELPER_H
 #include "x_attention_catlass_kernel.h"
@@ -26,7 +41,7 @@ CATLASS_DEVICE void CallSharedInferKernel(const XAttnKernelParams& params, XAtte
     // L1TileShape::K must be embdding
     using L1TileShape = GemmShape<128, 128, 128>;
     using L0TileShape = L1TileShape;
-    // GEMM Block模块，实现Flash Attention Infer的Q * K^T
+    // GEMM Block module, implement Flash Attention Infer of Q * K^T
     // using DispatchPolicyQK = Gemm::MmadAtlasA2FAIQK<true>;
     using DispatchPolicyQK = Gemm::MmadAtlasA2FAIQK<true, false>;
     using QType = Gemm::GemmType<ElementQ, LayoutQ>;
@@ -40,13 +55,13 @@ CATLASS_DEVICE void CallSharedInferKernel(const XAttnKernelParams& params, XAtte
     using SType = Gemm::GemmType<ElementS, LayoutS>;
     using BlockMmadQKTail = Gemm::Block::BlockMmad<DispatchPolicyQKTail, L1TileShape, L0TileShape, QType, KType, SType>;
 
-    // Shared Epilogue Block模块, 更新 rowsum rowmax，在lastStackTile CopyOut
+    // Shared Epilogue Block module, update rowsum rowmax, copy out in lastStackTile
     using DispatchPolicyOnlineSoftmax = Epilogue::EpilogueAtlasA2OnlineSoftmaxCopySumMax;
     using PType = Gemm::GemmType<ElementP, LayoutP>;
     using maskType = Gemm::GemmType<ElementMask, LayoutMask>;
     using EpilogueOnlineSoftmax = Epilogue::Block::BlockEpilogue<DispatchPolicyOnlineSoftmax, PType, SType, maskType>;
 
-    // GEMM Block模块，实现Flash Attention Infer的P * V
+    // GEMM Block module, implement Flash Attention Infer of P * V
     // using DispatchPolicyPV = Gemm::MmadAtlasA2FAIPV<true>;
     using DispatchPolicyPV = Gemm::MmadAtlasA2FAIPV<true, false>;
     using VType = Gemm::GemmType<ElementV, LayoutV>;
@@ -59,7 +74,7 @@ CATLASS_DEVICE void CallSharedInferKernel(const XAttnKernelParams& params, XAtte
     using BlockMmadPVTail =
         Gemm::Block::BlockMmad<DispatchPolicyPVTail, L1TileShape, L0TileShape, PType, VType, OTmpType>;
 
-    // Shared Epilogue RescaleO模型，lastStackTile不div RowSum, 也不Cast，以float
+    // Shared Epilogue RescaleO module, lastStackTile does not div RowSum, also does not Cast, to float
     using DispatchPolicyRescaleO = Epilogue::EpilogueAtlasA2RescaleOWithoutDivSum;
     using OType = Gemm::GemmType<ElementO, LayoutO>;
     using OUpdateType = Gemm::GemmType<ElementUpdate, LayoutUpdate>;
