@@ -302,8 +302,8 @@ class UnsharedFAInferKernel {
          gV.SetGlobalBuffer((__gm__ ElementK *)params.v_cache);
          AscendC::GlobalTensor<int32_t> gBlockTable;
          gBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.blockTables));
-         AscendC::GlobalTensor<int64_t> gActualKvseqlen;
-         gActualKvseqlen.SetGlobalBuffer((__gm__ int64_t *)params.actualKvseqlen);
+         AscendC::GlobalTensor<int32_t> gActualKvseqlen;
+         gActualKvseqlen.SetGlobalBuffer((__gm__ int32_t *)params.actualKvseqlen);
          AscendC::GlobalTensor<ElementS> gS;
          gS.SetGlobalBuffer((__gm__ ElementS *)params.s);
          AscendC::GlobalTensor<ElementP> gP;
@@ -335,7 +335,7 @@ class UnsharedFAInferKernel {
  
          preTotalTaskNum = curTotalTaskNum;
          qSeqlen = beamSize;
-         kvSeqlen = reinterpret_cast<int64_t>(gActualKvseqlen.GetValue(curBatch));
+         kvSeqlen = gActualKvseqlen.GetValue(curBatch);
          curQSBlockTile = GetQSBlockTile(kvSeqlen);
          curQNBlockTile = GetQNBlockTile(qSeqlen, groupSize);
          qNBlockNumPerGroup = CeilDiv(groupSize, curQNBlockTile);
@@ -354,7 +354,7 @@ class UnsharedFAInferKernel {
                      blockBOffset += maxNumBlocksPerBatch;
                  }
                  qSeqlen = beamSize;
-                 kvSeqlen = reinterpret_cast<int64_t>(gActualKvseqlen.GetValue(curBatch));
+                 kvSeqlen = gActualKvseqlen.GetValue(curBatch);
                  curQSBlockTile = GetQSBlockTile(kvSeqlen);
                  curQNBlockTile = GetQNBlockTile(qSeqlen, groupSize);
                  qNBlockNumPerGroup = CeilDiv(groupSize, curQNBlockTile);
@@ -616,8 +616,8 @@ class UnsharedFAInferKernel {
          uint64_t gOffsetTempO = batch * beamSize * qHeads * embed;
          uint64_t gMaxOffset = batch * beamSize * qHeads;
          // Get the memory offset address of the input on Global Memory
-         AscendC::GlobalTensor<int64_t> gActualKvseqlen;
-         gActualKvseqlen.SetGlobalBuffer((__gm__ int64_t *)params.actualKvseqlen);
+         AscendC::GlobalTensor<int32_t> gActualKvseqlen;
+         gActualKvseqlen.SetGlobalBuffer((__gm__ int32_t *)params.actualKvseqlen);
          AscendC::GlobalTensor<ElementO> gO;
          gO.SetGlobalBuffer((__gm__ ElementO *)params.o);
          AscendC::GlobalTensor<ElementS> gS;
