@@ -42,6 +42,8 @@ enum InputIndex {
 constexpr int32_t NUM2 = 2;
 constexpr int32_t NUM3 = 3;
 constexpr int32_t NUM4 = 4;
+constexpr int32_t UNSHARED_Q_TILE = 128;
+constexpr int32_t UNSHARED_KV_TILE = 256;
 constexpr uint32_t Q_S_BLOCK_TILE = 128;
 constexpr int32_t WORKSPACE_BLOCK_SIZE_DB = 128 * 128 * 4; // row * col * blockStackNum
 constexpr int32_t UNSHARED_WORKSPACE_BLOCK_SIZE_DB = 128 * 256;   // unshared no pinpong
@@ -97,7 +99,7 @@ void TilingXAttentionFunc::FillUnsharedSplitCoreTilingData()
   tiling_data_.set_unsharedCoreNum(unsharedBlockDim);
   tiling_data_.set_groupSize(tiling_data_.get_numHeads() / tiling_data_.get_kvHeads());
   uint32_t totalGroupCount = tiling_data_.get_batch() * tiling_data_.get_beamSize() * tiling_data_.get_kvHeads();
-  uint32_t maxGroupCountPerLoop = std::min(128 / tiling_data_.get_groupSize(), 256 / tiling_data_.get_maxDecodeStep());
+  uint32_t maxGroupCountPerLoop = std::min(UNSHARED_Q_TILE / tiling_data_.get_groupSize(), UNSHARED_KV_TILE / tiling_data_.get_maxDecodeStep());
   // ensure each task handles same group count
   while (maxGroupCountPerLoop > 1 && totalGroupCount % maxGroupCountPerLoop != 0)
       --maxGroupCountPerLoop;
