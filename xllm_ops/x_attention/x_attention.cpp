@@ -17,10 +17,21 @@ limitations under the License.
 #include "x_attention_catlass_helper.h"
 #include "lib/matmul_intf.h"
 
+#define CALL_XATTN_KERNEL(INPUT_TYPE, SHARED_PAGED_FLAG, UNSHARED_PAGED_FLAG) \
+    do { \
+        if (coreIdx < tiling_data.sharedCoreNum) { \
+            CallSharedInferKernelShort<INPUT_TYPE, SHARED_PAGED_FLAG>(params, &tiling_data); \
+        } else { \
+            CallUnsharedInferKernel<INPUT_TYPE, UNSHARED_PAGED_FLAG>(params, &tiling_data); \
+        } \
+        AscendC::SyncAll<false>(); \
+        CallCombineScale<INPUT_TYPE>(params, &tiling_data); \
+    } while (0)
+
 using namespace AscendC;
 
 extern "C" __global__ __aicore__ void x_attention(GM_ADDR query, GM_ADDR shared_key_block, GM_ADDR shared_value_block, 
-                        GM_ADDR unshared_key_block, GM_ADDR unshared_value_block, GM_ADDR shared_block_table, 
+                        GM_ADDR unshared_key_block, GM_ADDR unshared_value_block, GM_ADDR shared_block_table, GM_ADDR unshared_block_table,
                         GM_ADDR shared_kv_lens, GM_ADDR decode_step, GM_ADDR attn_out, GM_ADDR workspace, GM_ADDR tiling) {
     // workspace use; [s,p,oTemp,oUpdate,shared_workspace,unshared_workspace]
     KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIC_1_2);
@@ -35,18 +46,15 @@ extern "C" __global__ __aicore__ void x_attention(GM_ADDR query, GM_ADDR shared_
     int64_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
 
     XAttnKernelParams params{query, shared_key_block, shared_value_block, unshared_key_block, unshared_value_block, 
-     shared_block_table, shared_kv_lens, decode_step, s, p, oTemp, oUpdate, shared_workspace, 
+     shared_block_table, unshared_block_table, shared_kv_lens, decode_step, s, p, oTemp, oUpdate, shared_workspace, 
          unshared_workspace, attn_out, tiling};
-    if (coreIdx < tiling_data.sharedCoreNum) {
-        bool shortSequence = tiling_data.maxNumBlocksPerBatch * tiling_data.blockSize <= 512;
-        if (shortSequence) {
-            CallSharedInferKernelShort(params, &tiling_data);
-        } else {
-            CallSharedInferKernel(params, &tiling_data);
-        }
-    } else {
-        CallUnsharedInferKernel(params, &tiling_data);
+    if (TILING_KEY_IS(4)) {          // 0b0100
+        CALL_XATTN_KERNEL(half, false, true);
+    } else if (TILING_KEY_IS(6)) {   // 0b0110
+        CALL_XATTN_KERNEL(bfloat16_t, false, true);
+    } else if (TILING_KEY_IS(8)) {   // 0b1000
+        CALL_XATTN_KERNEL(half, true, false);
+    } else if (TILING_KEY_IS(10)) {  // 0b1010
+        CALL_XATTN_KERNEL(bfloat16_t, true, false);
     }
-    AscendC::SyncAll<false>();
-    CallCombineScale(params, &tiling_data);
 }

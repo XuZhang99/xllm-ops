@@ -34,7 +34,8 @@ using namespace Catlass;
 template <
     class BlockMmadQK,
     class BlockMmadPV,
-    class EpilogueFAUnsharedSoftmax
+    class EpilogueFAUnsharedSoftmax,
+    bool PAGED_CACHE_FLAG
     >
 class UnsharedFAInferKernel {
   public:
@@ -85,6 +86,8 @@ class UnsharedFAInferKernel {
         gP.SetGlobalBuffer((__gm__ ElementP *)params.p);
         AscendC::GlobalTensor<ElementO> gUnsharedO;
         gUnsharedO.SetGlobalBuffer((__gm__ ElementO *)params.unshared_workspace);
+        AscendC::GlobalTensor<int32_t> gUnsharedBlockTable;
+        gUnsharedBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.unsharedBlockTable));
 
         uint32_t maxDecodeStep = faTilingData->maxDecodeStep;
         uint32_t embeddingSize = faTilingData->embeddingSize;
@@ -94,21 +97,22 @@ class UnsharedFAInferKernel {
         uint32_t unsharedTaskNumHead = faTilingData->unsharedTaskNumHead;
         uint32_t unsharedTaskNumTail = faTilingData->unsharedTaskNumTail;
         uint32_t unsharedFullCoreNum = faTilingData->unsharedFullCoreNum;
+        uint32_t unsharedLoopCountPerBatch = faTilingData->unsharedLoopCountPerBatch;
         uint32_t coreNumShared = faTilingData->sharedCoreNum;
 
         uint32_t relativeCoreIdx = AscendC::GetBlockIdx() - coreNumShared;
         uint32_t taskStartIdx = relativeCoreIdx <= unsharedFullCoreNum ? relativeCoreIdx * unsharedTaskNumHead:
                                 (unsharedFullCoreNum * unsharedTaskNumHead + (relativeCoreIdx - unsharedFullCoreNum) * unsharedTaskNumTail) ;
-        bool isTailCore = (relativeCoreIdx + 1) == unsharedCoreNum;
         uint32_t taskEndIdx = taskStartIdx + (relativeCoreIdx >= unsharedFullCoreNum ? unsharedTaskNumTail : unsharedTaskNumHead);
         //cce::printf("aic blockIdx:%d, sub block num:%d, loopCount:%d\n", coreIdx, AscendC::GetSubBlockNum(), taskEndIdx - taskStartIdx);
         
-        int64_t qOBaseBlockSize = groupSize * unshareGroupCountPerLoop * embeddingSize;
-        int64_t kvBaseBlockSize = maxDecodeStep * unshareGroupCountPerLoop * embeddingSize;
-        int64_t gmQOffset = taskStartIdx * qOBaseBlockSize;
-        int64_t gmOOffset = gmQOffset;
-        int64_t gmKOffset = taskStartIdx * kvBaseBlockSize;
-        int64_t gmVOffset = gmKOffset;
+        uint64_t qOBaseBlockSize = groupSize * unshareGroupCountPerLoop * embeddingSize;
+        uint64_t kvBaseBlockSize = maxDecodeStep * unshareGroupCountPerLoop * embeddingSize;
+        uint64_t gmQOffset = taskStartIdx * qOBaseBlockSize;
+        uint64_t gmOOffset = gmQOffset;
+        uint64_t gmKOffset = 0;
+        GetKVOffset(taskStartIdx, unsharedLoopCountPerBatch, kvBaseBlockSize, gUnsharedBlockTable, gmKOffset);
+        uint64_t gmVOffset = gmKOffset;
         uint64_t gmSOffset = (coreNumShared * WORKSPACE_BLOCK_SIZE_DB +
                               relativeCoreIdx * UNSHARED_WORKSPACE_BLOCK_SIZE_DB) * NUM3;
         uint64_t gmPOffset = gmSOffset;
@@ -127,16 +131,25 @@ class UnsharedFAInferKernel {
                                      embeddingSize};
         GemmCoord actualBlockShapePV{unshareGroupCountPerLoop * groupSize, embeddingSize,
                                      unshareGroupCountPerLoop * maxDecodeStep};
-        for (uint32_t taskIdx = taskStartIdx; taskIdx < taskEndIdx + PRE_LAUNCH; ++taskIdx) {
+        for (uint32_t taskIdx = taskStartIdx, nextTaskIdx; taskIdx < taskEndIdx + PRE_LAUNCH; ++taskIdx) {
             if (taskIdx < taskEndIdx) {
                 sRelativeOffset = (taskIdx % (PRE_LAUNCH + 1)) * UNSHARED_WORKSPACE_BLOCK_SIZE_DB;
                 actualSOffset = gmSOffset + sRelativeOffset;
+                if (taskIdx >= taskStartIdx + PRE_LAUNCH) {
+                    AscendC::PipeBarrier<PIPE_MTE2>();
+                }
                 blockMmadQK(
                     gQ[gmQOffset], gUnsharedK[gmKOffset], gS[actualSOffset],
                     layoutQTemp, layoutKTemp, layoutSTemp, actualBlockShapeQK);
                 Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(qkReady);
                 gmQOffset += qOBaseBlockSize;
-                gmKOffset += kvBaseBlockSize;
+                nextTaskIdx = taskIdx + 1;
+                if (nextTaskIdx % unsharedLoopCountPerBatch == 0) {
+                    GetKVOffset(nextTaskIdx, unsharedLoopCountPerBatch, kvBaseBlockSize, gUnsharedBlockTable,
+                                gmKOffset);
+                } else {
+                    gmKOffset += kvBaseBlockSize;
+                } 
             }
             if (taskIdx >= taskStartIdx + PRE_LAUNCH) {
                 pRelativeOffset = ((taskIdx - PRE_LAUNCH) % (PRE_LAUNCH + 1)) * UNSHARED_WORKSPACE_BLOCK_SIZE_DB;
@@ -147,7 +160,13 @@ class UnsharedFAInferKernel {
                     layoutPTemp, layoutVTemp, layoutOTemp,
                     actualBlockShapePV, softmaxReady);
                 gmOOffset += qOBaseBlockSize;
-                gmVOffset += kvBaseBlockSize;
+                nextTaskIdx = taskIdx + 1 - PRE_LAUNCH;
+                if (nextTaskIdx % unsharedLoopCountPerBatch == 0) {
+                    GetKVOffset(nextTaskIdx, unsharedLoopCountPerBatch, kvBaseBlockSize, gUnsharedBlockTable,
+                                gmVOffset);
+                } else {
+                    gmVOffset += kvBaseBlockSize;
+                }
             }
         }
     }
@@ -188,7 +207,6 @@ class UnsharedFAInferKernel {
         uint32_t relativeCoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum() - coreNumShared;
         uint32_t taskStartIdx = relativeCoreIdx <= unsharedFullCoreNum ? relativeCoreIdx * unsharedTaskNumHead:
                                 (unsharedFullCoreNum * unsharedTaskNumHead + (relativeCoreIdx - unsharedFullCoreNum) * unsharedTaskNumTail) ;
-        bool isTailCore = (relativeCoreIdx + 1) == unsharedCoreNum;
         uint32_t taskEndIdx = taskStartIdx + (relativeCoreIdx >= unsharedFullCoreNum ? unsharedTaskNumTail : unsharedTaskNumHead);
         
         EpilogueFAUnsharedSoftmax epilogueFAUnsharedSoftmax(resource, scaleValue, unsharedKvSeqLen, maxDecodeStep, unshareGroupCountPerLoop,
@@ -219,6 +237,17 @@ class UnsharedFAInferKernel {
         }
         AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(EVENT_ID0);
+    }
+  private:
+    CATLASS_DEVICE void GetKVOffset(uint32_t taskIdx, uint32_t unsharedLoopCountPerBatch, uint64_t kvBaseBlockSize,
+                                    const AscendC::GlobalTensor<int32_t> &gUnsharedBlockTable, uint64_t &offset) {
+        if constexpr(PAGED_CACHE_FLAG) {
+            uint32_t batchId = gUnsharedBlockTable.GetValue(taskIdx / unsharedLoopCountPerBatch);
+            uint32_t remainCnt = taskIdx % unsharedLoopCountPerBatch;
+            offset = (batchId * unsharedLoopCountPerBatch + remainCnt) * kvBaseBlockSize;
+        } else {
+            offset = taskIdx * kvBaseBlockSize;
+        }
     }
   private:
     Arch::Resource<ArchTag> resource;
@@ -330,7 +359,7 @@ class UnsharedFAInferKernel {
          AscendC::GlobalTensor<ElementK> gV;
          gV.SetGlobalBuffer((__gm__ ElementK *)params.v_cache);
          AscendC::GlobalTensor<int32_t> gBlockTable;
-         gBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.blockTables));
+         gBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.sharedBlockTable));
          AscendC::GlobalTensor<int32_t> gActualKvseqlen;
          gActualKvseqlen.SetGlobalBuffer((__gm__ int32_t *)params.actualKvseqlen);
          AscendC::GlobalTensor<ElementS> gS;
@@ -1026,7 +1055,7 @@ class UnsharedFAInferKernel {
          AscendC::GlobalTensor<ElementK> gV;
          gV.SetGlobalBuffer((__gm__ ElementK *)params.v_cache);
          AscendC::GlobalTensor<int32_t> gBlockTable;
-         gBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.blockTables));
+         gBlockTable.SetGlobalBuffer((__gm__ int32_t *)(params.sharedBlockTable));
          //AscendC::GlobalTensor<int64_t> gActualQseqlen;
          //gActualQseqlen.SetGlobalBuffer((__gm__ int64_t *)params.actualQseqlen);
          AscendC::GlobalTensor<int32_t> gActualKvseqlen;
@@ -1087,7 +1116,12 @@ class UnsharedFAInferKernel {
                 ++curBatch;
                 preTotalTaskNum = curTotalTaskNum;
                 qBOffset += qSeqlen * strideQO;
-                blockBOffset += maxNumBlocksPerBatch;
+                if (!PAGED_CACHE_FLAG) {
+                    kBOffset += kvSeqlen * strideKV;
+                    vBOffset += kvSeqlen * strideKV;
+                } else {
+                    blockBOffset += maxNumBlocksPerBatch;
+                }
                 oBOffset += qSeqlen * strideQO;
 
                 kvSeqlen = gActualKvseqlen.GetValue(curBatch);
@@ -1435,13 +1469,10 @@ class UnsharedFAInferKernel {
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
                 }
-          
+                loopCnt++;
+                workspaceStagesFlag = (workspaceStagesFlag + 1) % (PRE_LAUNCH + 1); 
                      
              }
-             loopCnt++;
-             workspaceStagesFlag = (workspaceStagesFlag + 1) % (PRE_LAUNCH + 1); 
-                
-      
          }
  
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID2);

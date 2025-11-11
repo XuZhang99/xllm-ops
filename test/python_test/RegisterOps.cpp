@@ -62,18 +62,20 @@ at::Tensor x_attention_impl_npu(const at::Tensor& query,
                                 const at::Tensor& value_cache,
                                 const at::Tensor& unshared_key,
                                 const at::Tensor& unshared_value,
-                                const at::Tensor& block_tables,
+                                const c10::optional<at::Tensor>& shared_block_tables,
+                                const c10::optional<at::Tensor>& unshared_block_tables,
                                 const at::Tensor& actual_shared_kvlen,
                                 const at::Tensor& decode_step) {
   at::Tensor attnOut = at::empty_like(query);
-
+  
   EXEC_NPU_CMD(aclnnXAttention,
                query,
                key_cache,
                value_cache,
                unshared_key,
                unshared_value,
-               block_tables,
+               shared_block_tables,
+               unshared_block_tables,
                actual_shared_kvlen,
                decode_step,
                attnOut);

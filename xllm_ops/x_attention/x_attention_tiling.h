@@ -45,6 +45,7 @@ BEGIN_TILING_DATA_DEF(XAttentionTilingData)
   TILING_DATA_FIELD_DEF(uint32_t, unsharedFullCoreNum);
   TILING_DATA_FIELD_DEF(uint32_t, unsharedTaskNumHead);
   TILING_DATA_FIELD_DEF(uint32_t, unsharedTaskNumTail);
+  TILING_DATA_FIELD_DEF(uint32_t, unsharedLoopCountPerBatch);
   TILING_DATA_FIELD_DEF(uint32_t, combineFormerCoreNum);
   TILING_DATA_FIELD_DEF(uint32_t, combineFormerRowNum);
   TILING_DATA_FIELD_DEF(uint32_t, combineTailRowNum);

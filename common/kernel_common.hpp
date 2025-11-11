@@ -140,7 +140,8 @@ struct XAttnKernelParams {
     GM_ADDR v_cache;
     GM_ADDR unshared_k;
     GM_ADDR unshared_v;
-    GM_ADDR blockTables;
+    GM_ADDR sharedBlockTable;
+    GM_ADDR unsharedBlockTable;
     GM_ADDR actualKvseqlen; // shared Kv
     GM_ADDR decodeStep;     // unshared kv: 1, 2, 3
     GM_ADDR s;
@@ -162,7 +163,8 @@ struct XAttnKernelParams {
     GM_ADDR v_cache_,
     GM_ADDR unshared_k_,
     GM_ADDR unshared_v_,
-    GM_ADDR blockTables_,
+    GM_ADDR sharedBlockTable_,
+    GM_ADDR unsharedBlockTable_,
     GM_ADDR actualKvseqlen_,
     GM_ADDR decodeStep_,
     GM_ADDR s_,
@@ -172,7 +174,8 @@ struct XAttnKernelParams {
     GM_ADDR shared_workspace_,
     GM_ADDR unshared_workspace_,
     GM_ADDR o_, GM_ADDR tiling_) : q(q_), k_cache(k_cache_), v_cache(v_cache_),
-    unshared_k(unshared_k_), unshared_v(unshared_v_), blockTables(blockTables_), actualKvseqlen(actualKvseqlen_),
+    unshared_k(unshared_k_), unshared_v(unshared_v_), sharedBlockTable(sharedBlockTable_),
+    unsharedBlockTable(unsharedBlockTable_), actualKvseqlen(actualKvseqlen_),
     decodeStep(decodeStep_), s(s_), p(p_), oTemp(oTemp_), oUpdate(oUpdate_),
     shared_workspace(shared_workspace_), unshared_workspace(unshared_workspace_),
     o(o_), tiling(tiling_)
