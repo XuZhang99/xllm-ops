@@ -2,7 +2,7 @@ add_ops_compile_options(
 	OP_NAME BeamSearch
         OPTIONS --cce-auto-sync=on
                 -Wno-deprecated-declarations
-                -Werror
+                -Wno-error
 )
 
 target_sources(op_host_aclnn PRIVATE

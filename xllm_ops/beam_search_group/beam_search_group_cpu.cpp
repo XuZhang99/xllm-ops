@@ -76,7 +76,7 @@ ge::graphStatus TilingBeamSearchGroupFunc::Init() {
   beam_width_ = sequence_shape.GetDim(sequence_shape.GetDimNum() - 2);
   request_num_ = num_sequences_ / beam_width_;
   if(request_num_ > MAX_SUPPORT_REQUEST_NUM) {
-    OP_LOGE(context->GetNodeName(), "request_num must be less than %d", MAX_SUPPORT_REQUEST_NUM);
+    OP_LOGE(context->GetNodeName(), "request_num must be less than %u", MAX_SUPPORT_REQUEST_NUM);
     return ge::GRAPH_FAILED;
   }
   core_num_ = aiv_num;

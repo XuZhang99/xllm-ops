@@ -225,9 +225,6 @@ if (BUILD_OPEN_PROJECT)
                 RESULT_VARIABLE result
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                 OUTPUT_VARIABLE PREPARE_BUILD_OUTPUT_VARIABLE)
-        message(STATUS "result---lmx ------ : ${result}")
-        # message(STATUS "PREPARE_BUILD_ERROR_VARIABLE": ${PREPARE_BUILD_ERROR_VARIABLE})
-        message(STATUS "hello xllm----------------")
         if (result)
             message(FATAL_ERROR "Error: ops prepare build failed.")
         endif ()

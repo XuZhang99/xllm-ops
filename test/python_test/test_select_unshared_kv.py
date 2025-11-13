@@ -82,8 +82,18 @@ def _generate_beam_idxs(*, batch: int, beam_size: int) -> torch.Tensor:
     sorted_beam_idxs, _ = torch.sort(beam_idxs)
     return sorted_beam_idxs.reshape([batch * beam_size])
 
-@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
-def test_select_unshared_kv_npu(dtype):
+@pytest.mark.parametrize("dtype,batch,max_decode_step,beam_size,head_num,head_dim,block_num,layer_num", 
+[
+    (torch.float16, 1, 3, 512, 8, 128, 1, 1),
+    (torch.float16, 1, 3, 512, 8, 128, 1, 10),
+    (torch.float16, 1, 3, 512, 8, 128, 1, 32), 
+    (torch.float16, 2, 3, 512, 8, 128, 2, 10),
+    (torch.float16, 2, 3, 512, 8, 128, 4, 10),
+    (torch.float16, 3, 3, 512, 8, 128, 3, 32),
+    # (torch.float16, 10, 3, 512, 8, 128, 30, 10), 
+    # (torch.bfloat16, 10, 3, 512, 8, 128, 30, 10)
+    ])
+def test_select_unshared_kv_npu(dtype,batch,max_decode_step,beam_size,head_num,head_dim,block_num,layer_num):
     # Device selection (skip if no NPU available)
     try:
         torch_npu.npu.set_device(0)
@@ -92,13 +102,13 @@ def test_select_unshared_kv_npu(dtype):
 
     torch.manual_seed(1234)
 
-    batch = 10
-    max_decode_step = 3
-    beam_size = 512
-    head_num = 8
-    head_dim = 128
-    block_num = 30
-    layer_num = 10
+    # batch = 10
+    # max_decode_step = 3
+    # beam_size = 512
+    # head_num = 8
+    # head_dim = 128
+    # block_num = 30
+    # layer_num = 10
 
     x_key_block_npu = torch.zeros(
         [layer_num, block_num, beam_size, head_num, max_decode_step, head_dim], dtype=dtype

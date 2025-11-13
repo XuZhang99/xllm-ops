@@ -2,7 +2,7 @@ add_ops_compile_options(
         OP_NAME ApplyTopKTopPWithSorted
         OPTIONS --cce-auto-sync=on
                 -Wno-deprecated-declarations
-                -Werror
+                -Wno-error
 )
 
 

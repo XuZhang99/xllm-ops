@@ -38,6 +38,13 @@ target_link_libraries(op_host_aclnn PRIVATE
 target_compile_options(op_host_aclnn PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++1z>
 )
+target_compile_options(op_host_aclnn PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(op_host_aclnn SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
+)
 
 add_library(op_host_aclnnInner SHARED EXCLUDE_FROM_ALL)
 target_link_libraries(op_host_aclnnInner PRIVATE
@@ -46,6 +53,13 @@ target_link_libraries(op_host_aclnnInner PRIVATE
 target_compile_options(op_host_aclnnInner PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++1z>
 )
+target_compile_options(op_host_aclnnInner PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(op_host_aclnnInner SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
+)
 
 add_library(op_host_aclnnExc SHARED EXCLUDE_FROM_ALL)
 target_link_libraries(op_host_aclnnExc PRIVATE
@@ -53,6 +67,13 @@ target_link_libraries(op_host_aclnnExc PRIVATE
 )
 target_compile_options(op_host_aclnnExc PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++1z>
+)
+target_compile_options(op_host_aclnnExc PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(op_host_aclnnExc SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
 )
 
 # op api
@@ -68,6 +89,10 @@ target_compile_options(opapi PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++1z>
 )
 target_include_directories(opapi PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
+)
+target_include_directories(opapi SYSTEM PRIVATE
         $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
         $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
 )
@@ -109,6 +134,13 @@ target_compile_options(opsproto PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
         -fvisibility=hidden
 )
+target_compile_options(opsproto PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(opsproto SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
+)
 target_compile_definitions(opsproto PRIVATE
         LOG_CPP
         PROCESS_LOG
@@ -143,6 +175,13 @@ add_library(optiling SHARED)
 target_compile_options(optiling PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
         -fvisibility=hidden
+)
+target_compile_options(optiling PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(optiling SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
 )
 target_compile_definitions(optiling PRIVATE
         LOG_CPP
@@ -344,6 +383,13 @@ add_library(ops_aclnn STATIC
 )
 target_compile_options(ops_aclnn PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++1z>
+)
+target_compile_options(ops_aclnn PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare -Wno-type-limits -Wno-array-bounds -Wno-format -Wno-format-nonliteral -Wno-missing-format-attribute -Wno-format-signedness -Wno-stringop-overflow -Wno-unused-macros>
+)
+target_include_directories(ops_aclnn SYSTEM PRIVATE
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include>
+        $<BUILD_INTERFACE:${ASCEND_CANN_PACKAGE_PATH}/include/aclnn>
 )
 target_link_libraries(ops_aclnn PRIVATE
         $<BUILD_INTERFACE:intf_pub>

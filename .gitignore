@@ -7,6 +7,7 @@ src/math/*/tests/st/[0-9]*/
 src/math/*/examples/CppExtensions/*/test/*.json
 src/math/*/examples/PytorchInvocation/pytorch
 test/*/bin
+test/*/extra-info
 test/kernel_meta
 fusion_result.json
 

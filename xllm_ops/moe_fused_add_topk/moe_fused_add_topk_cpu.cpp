@@ -261,7 +261,7 @@ void MoeFusedAddTopkTiling::TilingDataPrint()
     OP_LOGD(tilingContext_->GetNodeName(), "topN:                           %u", tilingData_.get_topN());
     OP_LOGD(tilingContext_->GetNodeName(), "topK:                           %u", tilingData_.get_topK());
     OP_LOGD(tilingContext_->GetNodeName(), "activateType:                   %u", tilingData_.get_activateType());
-    OP_LOGD(tilingContext_->GetNodeName(), "isNorm:                         %d", tilingData_.get_isNorm());
+    OP_LOGD(tilingContext_->GetNodeName(), "isNorm:                         %u", tilingData_.get_isNorm());
     OP_LOGD(tilingContext_->GetNodeName(), "scale:                          %f", tilingData_.get_scale());
     OP_LOGD(tilingContext_->GetNodeName(), "groupEles:                      %u", tilingData_.get_groupEles());
     OP_LOGD(tilingContext_->GetNodeName(), "blockNum:                       %u", tilingData_.get_blockNum());

@@ -78,31 +78,31 @@ ge::graphStatus TilingGroupMatmulFunc::Init() {
   sync_workspace_size_ = static_cast<size_t>(platform_info.GetLibApiWorkSpaceSize());
 
   if(a_shape.GetDimNum() != 2 || b_shape.GetDimNum() != 3 || scale_shape.GetDimNum() != 2 || per_token_scale_shape.GetDimNum() != 1 || group_list_shape.GetDimNum() != 1 || c_shape.GetDimNum() != 2){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dimNum of input and output should be 2, but got %ld, %ld, %ld, %ld, %ld, %ld.", a_shape.GetDimNum(), b_shape.GetDimNum(), scale_shape.GetDimNum(), per_token_scale_shape.GetDimNum(), group_list_shape.GetDimNum(), c_shape.GetDimNum());
+    OP_LOGE(tiling_context_->GetNodeName(), "the dimNum of input and output should be 2, but got %zu, %zu, %zu, %zu, %zu, %zu.", static_cast<size_t>(a_shape.GetDimNum()), static_cast<size_t>(b_shape.GetDimNum()), static_cast<size_t>(scale_shape.GetDimNum()), static_cast<size_t>(per_token_scale_shape.GetDimNum()), static_cast<size_t>(group_list_shape.GetDimNum()), static_cast<size_t>(c_shape.GetDimNum()));
     return ge::GRAPH_FAILED;
   }
   if(a_shape.GetDim(1) != b_shape.GetDim(1)){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input a and b should be equal, but got %ld, %ld.", a_shape.GetDim(1), b_shape.GetDim(1));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input a and b should be equal, but got %zu, %zu.", static_cast<size_t>(a_shape.GetDim(1)), static_cast<size_t>(b_shape.GetDim(1)));
     return ge::GRAPH_FAILED;
   }
   if(scale_shape.GetDim(0) != group_num_ || scale_shape.GetDim(1) != n_){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input scale should be equal to input a and b, but got %ld, %ld.", scale_shape.GetDim(0), scale_shape.GetDim(1));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input scale should be equal to input a and b, but got %zu, %zu.", static_cast<size_t>(scale_shape.GetDim(0)), static_cast<size_t>(scale_shape.GetDim(1)));
     return ge::GRAPH_FAILED;
   }
   if(per_token_scale_shape.GetDim(0) != m_){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input per_token_scale should be equal to input a, but got %ld.", per_token_scale_shape.GetDim(0));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input per_token_scale should be equal to input a, but got %zu.", static_cast<size_t>(per_token_scale_shape.GetDim(0)));
     return ge::GRAPH_FAILED;
   }
   if(group_list_shape.GetDim(0) != group_num_){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input group_list should be equal to input b, but got %ld.", group_list_shape.GetDim(0));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input group_list should be equal to input b, but got %zu.", static_cast<size_t>(group_list_shape.GetDim(0)));
     return ge::GRAPH_FAILED;
   }
   if(c_shape.GetDim(c_shape.GetDimNum() - 2) != m_){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input c should be equal to input a, but got %ld.", c_shape.GetDim(c_shape.GetDimNum() - 2));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input c should be equal to input a, but got %zu.", static_cast<size_t>(c_shape.GetDim(c_shape.GetDimNum() - 2)));
     return ge::GRAPH_FAILED;
   }
   if(c_shape.GetDim(c_shape.GetDimNum() - 1) != n_){
-    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input c should be equal to input b, but got %ld.", c_shape.GetDim(c_shape.GetDimNum() - 1));
+    OP_LOGE(tiling_context_->GetNodeName(), "the dim of input c should be equal to input b, but got %zu.", static_cast<size_t>(c_shape.GetDim(c_shape.GetDimNum() - 1)));
     return ge::GRAPH_FAILED;
   }
   return ge::GRAPH_SUCCESS;

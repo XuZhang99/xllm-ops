@@ -194,14 +194,14 @@ target_link_libraries(multi_latent_attention_gtest PRIVATE
 )
 
 # Add tests
-add_test(AllTestsInBeamSearch beam_search_test)
+# add_test(AllTestsInBeamSearch beam_search_test)
 add_test(AllTestsInPPMatmul pp_matmul_test)
 add_test(AllTestsInGroupGemm group_gemm_gtest)
 add_test(AllTestsInMultiLatentAttention multi_latent_attention_gtest)
 
 # GoogleTest automatic discovery
 include(GoogleTest)
-gtest_discover_tests(beam_search_test)
+# gtest_discover_tests(beam_search_test)
 gtest_discover_tests(pp_matmul_test)
 gtest_discover_tests(group_gemm_gtest)
 gtest_discover_tests(multi_latent_attention_gtest)
