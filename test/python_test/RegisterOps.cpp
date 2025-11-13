@@ -30,9 +30,9 @@ void select_unshared_kv_impl_npu(
   at::TensorList x_value_block_list = at::TensorList(x_value_block);
   EXEC_NPU_CMD(aclnnSelectUnsharedKV,
                beam_index,
+               block_table,
                x_key_block_list,
                x_value_block_list,
-               block_table,
                group_token_num,
                decode_step,
                beam_size,

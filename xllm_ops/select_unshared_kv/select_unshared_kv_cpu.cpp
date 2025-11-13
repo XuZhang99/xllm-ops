@@ -20,9 +20,9 @@ limitations under the License.
 
 enum InputIndex {
     BEAM_INDEX = 0,
+    BLOCK_TABLE,
     X_KEY_BLOCK,
     X_VALUE_BLOCK,
-    BLOCK_TABLE,
     GROUP_TOKEN_NUM
 };
 
@@ -132,6 +132,11 @@ public:
             .DataType({ge::DT_INT32, ge::DT_INT32})
             .Format({ge::FORMAT_ND, ge::FORMAT_ND})
             .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+        this->Input("block_table")
+            .ParamType(REQUIRED)
+            .DataType({ge::DT_INT32, ge::DT_INT32})
+            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
         this->Input("x_key_block")
             .ParamType(DYNAMIC)
             .DataType({ge::DT_FLOAT16, ge::DT_BF16})
@@ -140,11 +145,6 @@ public:
         this->Input("x_value_block")
             .ParamType(DYNAMIC)
             .DataType({ge::DT_FLOAT16, ge::DT_BF16})
-            .Format({ge::FORMAT_ND, ge::FORMAT_ND})
-            .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
-        this->Input("block_table")
-            .ParamType(REQUIRED)
-            .DataType({ge::DT_INT32, ge::DT_INT32})
             .Format({ge::FORMAT_ND, ge::FORMAT_ND})
             .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
         this->Input("group_token_num")
