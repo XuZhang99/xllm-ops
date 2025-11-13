@@ -14,10 +14,9 @@
 # limitations under the License.
 # ==============================================================================
 
+import os
 import pytest
 import torch
-
-
 torch_npu = pytest.importorskip("torch_npu")
 custom_ops = pytest.importorskip("custom_ops")
 
@@ -26,7 +25,7 @@ def beam_search_torch(request_num, beam_width, log_probs, top_tokens, top_probs,
     # top_tokens/top_probs shape: [request_num * beam_width, top_k]
     top_k = top_tokens.shape[-1]
     device = top_tokens.device
-    # Prefill 阶段：current_step == 0，直接将 top_tokens 的首列写入最后一维第 0 列
+    # Prefill stage: current_step == 0, directly write the first column of top_tokens to the last dimension of the 0th column
     if current_step == 0:
         tokens_flat = top_tokens.view(request_num * beam_width, -1)
         first_col = tokens_flat[:, 0].to(torch.int32)
@@ -93,7 +92,7 @@ def beam_search_torch(request_num, beam_width, log_probs, top_tokens, top_probs,
         out_beam_count_prefix_sums[r] = prefix + r * beam_width
     origin_seq = sequence
 
-    # Decode 阶段：先根据 out_token_index 重排 prefix，再写入第 current_step 列的新 token
+    # Decode stage: first reorder prefix according to out_token_index, then write the new token to the current_step column
     index_flat = out_token_index.view(-1).to(torch.long)
     flat_sequence = sequence.view(request_num * beam_width, -1)
     reordered_rows = flat_sequence.index_select(0, index_flat)
@@ -103,94 +102,50 @@ def beam_search_torch(request_num, beam_width, log_probs, top_tokens, top_probs,
     sequence = flat_sequence.view_as(sequence)
     return out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, sequence, origin_seq
 
-<<<<<<< HEAD:test/python_test/test_beam_search_group.py
-@pytest.mark.parametrize("dtype", [torch.int32])
-def test_beam_search_group_npu(dtype):
-    # Device selection (skip if no NPU available)
+@pytest.mark.parametrize(
+    "request_num, beam_width, top_k, current_step",
+    [
+        (1,8,8,0),
+        (1,8,8,1),
+        (1,8,8,2),
+        (1, 16, 16, 0),   # prefill, top_k must be 1
+        (1, 16, 16, 1),
+        (1, 16, 16, 2),
+        (2, 512, 512, 0),
+        (2, 512, 512, 1),
+        (2, 512, 512, 2),
+    ],
+)
+def test_beam_search_group_npu(request_num, beam_width, top_k, current_step):
     try:
-        torch_npu.npu.set_device(0)
+        device_id = int(os.getenv("NPU_DEVICE_ID", os.getenv("ASCEND_DEVICE_ID", "0")))
+        torch_npu.npu.set_device(device_id)
     except Exception as e:
         pytest.skip(f"NPU device not available: {e}")
 
-    torch.manual_seed(1234)
-
-=======
-if __name__ == '__main__':
-    # prefill top_k must be 1
->>>>>>> 5dd5785 (feat: support token sequence update in beam_search_group kernel.):test/python_test/test/beam_search_group.py
-    request_num = 2
-    beam_width = 512
-    top_k = 512
-    current_step = 0
-    top_k = 1 if current_step == 0 else top_k
     atol_div = 1e-4
-    log_probs = torch.rand((request_num*beam_width,1), dtype=torch.float32)
-    top_tokens = torch.randint(0, 10, (request_num * beam_width, top_k), dtype=torch.int32)
-    top_probs = torch.rand((request_num * beam_width, top_k), dtype=torch.float32)
-    sequence = torch.randint(0, 10, (request_num,beam_width,3), dtype=torch.int32)
-<<<<<<< HEAD:test/python_test/test_beam_search_group.py
-    # print("log_probs:", log_probs)
-    # print("top_tokens:", top_tokens)
-    # print("top_probs:", top_probs)
-    # print("sequence:", sequence)
-    current_step = 2
-    out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, sequence = beam_search_torch(request_num, beam_width, log_probs, top_tokens, top_probs, sequence,current_step)
-    # print("out_token_ids:", out_token_ids)
-    # print("out_token_index:", out_token_index)
-    # print("out_log_probs:", out_log_probs)
-    # print("out_beam_count_prefix_sums:", out_beam_count_prefix_sums)
-    # print("sequence:", sequence)
-    sequence_golden = sequence.clone()
-=======
-    print("log_probs:", log_probs)
-    print("top_tokens:", top_tokens)
-    print("top_probs:", top_probs)
-    print("sequence:", sequence)
-    
+    eff_top_k = 1 if current_step == 0 else top_k
+
+    log_probs = torch.rand((request_num * beam_width, 1), dtype=torch.float32)
+    top_tokens = torch.randint(0, 10, (request_num * beam_width, eff_top_k), dtype=torch.int32)
+    top_probs = torch.rand((request_num * beam_width, eff_top_k), dtype=torch.float32)
+    sequence = torch.randint(0, 10, (request_num, beam_width, 3), dtype=torch.int32)
     origin_seq = sequence.clone()
-    out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, sequence, _ = beam_search_torch(request_num, beam_width, log_probs, top_tokens, top_probs, sequence,current_step)
->>>>>>> 5dd5785 (feat: support token sequence update in beam_search_group kernel.):test/python_test/test/beam_search_group.py
-    log_probs_npu = log_probs.npu()
-    top_tokens_npu = top_tokens.npu()
-    top_probs_npu = top_probs.npu()
-    sequence_npu = origin_seq.npu()
-    out_token_ids_npu, out_token_index_npu, out_log_probs_npu, out_beam_count_prefix_sums_npu, sequence_npu = custom_ops.beam_search_group_npu(log_probs_npu, top_tokens_npu, top_probs_npu, sequence_npu, current_step)
-<<<<<<< HEAD:test/python_test/test_beam_search_group.py
-    assert torch.allclose(out_token_ids, out_token_ids_npu.cpu(), atol=atol_div, rtol=0)
-    assert torch.allclose(out_token_index, out_token_index_npu.cpu(), atol=atol_div, rtol=0)
-    assert torch.allclose(out_log_probs, out_log_probs_npu.cpu(), atol=atol_div, rtol=0)
-    assert torch.allclose(out_beam_count_prefix_sums, out_beam_count_prefix_sums_npu.cpu(), atol=atol_div, rtol=0)
-    assert torch.allclose(sequence, sequence_golden, atol=atol_div, rtol=0)
-=======
+    print("sequence", sequence)
+    out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, sequence_cpu, _ = beam_search_torch(
+        request_num, beam_width, log_probs, top_tokens, top_probs, sequence, current_step
+    )
+
+    out_token_ids_npu, out_token_index_npu, out_log_probs_npu, out_beam_count_prefix_sums_npu, sequence_npu = custom_ops.beam_search_group_npu(
+        log_probs.npu(), top_tokens.npu(), top_probs.npu(), origin_seq.npu(), current_step
+    )
 
     if current_step != 0:
-        is_right = torch.allclose(out_token_ids.flatten(), out_token_ids_npu.cpu().flatten(), atol=atol_div, rtol=0)
-        if is_right:
-            print("out_token_ids is right")
-        else:
-            print("out_token_ids is wrong") 
-        is_right = torch.allclose(out_token_index.flatten(), out_token_index_npu.cpu().flatten(), atol=atol_div, rtol=0)
-        if is_right:
-            print("out_token_index is right")
-        else:
-            print("out_token_index is wrong")
-        is_right = torch.allclose(out_log_probs.flatten(), out_log_probs_npu.cpu().flatten(), atol=atol_div, rtol=0)
-        if is_right:
-            print("out_log_probs is right")
-        else:
-            print("out_log_probs is wrong")
-        is_right = torch.allclose(out_beam_count_prefix_sums.flatten(), out_beam_count_prefix_sums_npu.cpu().flatten(), atol=atol_div, rtol=0)
-        if is_right:
-            print("out_beam_count_prefix_sums is right")
-        else:
-            print("out_beam_count_prefix_sums is wrong")
+        assert torch.allclose(out_token_ids.flatten(), out_token_ids_npu.cpu().flatten(), atol=atol_div, rtol=0)
+        assert torch.allclose(out_token_index.flatten(), out_token_index_npu.cpu().flatten(), atol=atol_div, rtol=0)
+        assert torch.allclose(out_log_probs.flatten(), out_log_probs_npu.cpu().flatten(), atol=atol_div, rtol=0)
+        assert torch.allclose(out_beam_count_prefix_sums.flatten(), out_beam_count_prefix_sums_npu.cpu().flatten(), atol=atol_div, rtol=0)
     if current_step == 0:
-        is_right = torch.allclose(out_token_ids.flatten(), sequence_npu.cpu()[:, :, 0].flatten(), atol=atol_div, rtol=0)
+        assert torch.allclose(out_token_ids.flatten(), sequence_npu.cpu()[:, :, 0].flatten(), atol=atol_div, rtol=0)
     else:  
-        is_right = torch.allclose(sequence[:, :, : current_step + 1], sequence_npu.cpu()[:, :, : current_step + 1], atol=atol_div, rtol=0)
-    if is_right:
-        print("sequence is right")
-    else:
-        print("sequence is wrong")
-    
->>>>>>> 5dd5785 (feat: support token sequence update in beam_search_group kernel.):test/python_test/test/beam_search_group.py
+        assert torch.allclose(sequence_cpu[:, :, : current_step + 1].flatten(), sequence_npu.cpu()[:, :, : current_step + 1].flatten(), atol=atol_div, rtol=0)

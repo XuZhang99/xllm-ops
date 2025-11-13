@@ -167,29 +167,29 @@ TEST_F(BeamSearchTest, DifferentSizes) {
     }
 }
 
-// TEST_F(BeamSearchTest, DifferentRequestNums) {
-//     std::vector<std::tuple<int, int, int, int>> test_sizes = {
-//         {512, 512, 1, 3},
-//         // {512, 512, 2, 2},
-//         // {512, 512, 4, 4},
-//         // {512, 512, 8, 8}
-//     };
-//     for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes) {
-//         run_beam_search_test(beam_width, top_k, request_num, sequence_length, stream1);
-//     }
-// }
+TEST_F(BeamSearchTest, DifferentRequestNums) {
+    std::vector<std::tuple<int, int, int, int>> test_sizes = {
+        {512, 512, 1, 3},
+        // {512, 512, 2, 2},
+        // {512, 512, 4, 4},
+        // {512, 512, 8, 8}
+    };
+    for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes) {
+        run_beam_search_test(beam_width, top_k, request_num, sequence_length, stream1);
+    }
+}
 
-// TEST_F(BeamSearchTest, RandomSizeTests) {
-//     std::vector<std::tuple<int, int, int, int>> test_sizes{};
-//     int testcases = 10;
-//     for (int i = 0; i < testcases; ++i) {
-//         int beam_width = rand() % 512 + 1;       // 1 to 512
-//         int top_k = beam_width;
-//         int request_num = rand() % 16 + 1;       // 1 to 16
-//         int sequence_length = request_num;
-//         test_sizes.emplace_back(beam_width, top_k, request_num, sequence_length);
-//     }
-//     for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes) {
-//         run_beam_search_test(beam_width, top_k, request_num, sequence_length, stream1);
-//     }
-// }
+TEST_F(BeamSearchTest, RandomSizeTests) {
+    std::vector<std::tuple<int, int, int, int>> test_sizes{};
+    int testcases = 10;
+    for (int i = 0; i < testcases; ++i) {
+        int beam_width = rand() % 512 + 1;       // 1 to 512
+        int top_k = beam_width;
+        int request_num = rand() % 16 + 1;       // 1 to 16
+        int sequence_length = request_num;
+        test_sizes.emplace_back(beam_width, top_k, request_num, sequence_length);
+    }
+    for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes) {
+        run_beam_search_test(beam_width, top_k, request_num, sequence_length, stream1);
+    }
+}

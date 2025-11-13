@@ -23,7 +23,7 @@ limitations under the License.
 #define OP_LOGE(nodeName, fmt, ...) \
   printf(fmt, ##__VA_ARGS__);       \
   printf("\n")
-
+constexpr uint32_t MAX_SUPPORT_REQUEST_NUM = 48;
 namespace optiling {
 class TilingBeamSearchGroupFunc {
  public:
@@ -75,6 +75,10 @@ ge::graphStatus TilingBeamSearchGroupFunc::Init() {
   }
   beam_width_ = sequence_shape.GetDim(sequence_shape.GetDimNum() - 2);
   request_num_ = num_sequences_ / beam_width_;
+  if(request_num_ > MAX_SUPPORT_REQUEST_NUM) {
+    OP_LOGE(context->GetNodeName(), "request_num must be less than %d", MAX_SUPPORT_REQUEST_NUM);
+    return ge::GRAPH_FAILED;
+  }
   core_num_ = aiv_num;
   int32_t block_size1 = 32/sizeof(float);
   int32_t align_top_k = (top_k_+block_size1-1)/block_size1*block_size1;

@@ -506,7 +506,7 @@ __aicore__ inline void ProcessSequence::SubProcessSeqPrefill(int32_t request_idx
 
 __aicore__ inline void ProcessSequence::Process() {
   for (int32_t request_idx = 0; request_idx < this->request_num; request_idx++) {
-    if (request_idx % 24 == block_idx) {
+    if (request_idx % 48 == block_idx) {
       if (this->current_step == 0) {
           SubProcessSeqPrefill(request_idx);
           return;
