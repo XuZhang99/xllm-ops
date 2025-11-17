@@ -94,7 +94,7 @@ function fn_load_atb()
     cd $THIRD_PARTY_DIR
     # Fork from https://gitee.com/vallenChen/ascend-transformer-boost.git,
     # Add customized ops release solution for XLLM.
-    git clone -b br_personal_cann_8.2.RC1_20251226_JD --depth 1 https://coding.jd.com/xllm-ai/ascend-transformer-boost.git
+    git clone -b br_personal_cann_8.2.RC1_20251226_JD --depth 1 https://gitcode.com/xLLM-AI/ascend-transformer-boost.git
 }
 
 function fn_load_compiler()
