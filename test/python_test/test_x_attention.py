@@ -493,31 +493,68 @@ class TestFlashAttentionInfer:
         npu_res = npu_res.cpu().float()
         assert torch.allclose(npu_res, golden_res, atol=0.001, rtol=0.001)
 
-@pytest.mark.parametrize("dtype", [torch.half, torch.bfloat16])
-def test_x_attention_npu(dtype):
+@pytest.mark.parametrize("dtype,request_num,beam_size,q_seqlen,kv_seqlen,unshared_seqlen,num_head,kv_heads,embedding_size,block_size,is_varied_len,mask_type,shared_kv_type,unshared_kv_type", [
+    (torch.bfloat16, 1, 128, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 1, 256, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 1, 512, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 1, 1024, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 1, 2048, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 1, 4096, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 128, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 256, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 512, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 1024, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 2048, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 4096, 1, 1024, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 128, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 256, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 512, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 1024, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 2048, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    (torch.bfloat16, 2, 4096, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 128, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 256, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 512, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 1024, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 2048, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 8, 4096, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 128, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 256, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 512, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 1024, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 2048, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 16, 4096, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 128, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 256, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 512, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 1024, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 2048, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+    # (torch.bfloat16, 32, 4096, 1, 2048, 2, 32, 8, 128, 128, 0, 0, 0, 1),
+])
+def test_x_attention_npu(dtype,request_num,beam_size,q_seqlen,kv_seqlen,unshared_seqlen,num_head,kv_heads,embedding_size,block_size,is_varied_len,mask_type,shared_kv_type,unshared_kv_type):
     # Device selection (skip if no NPU available)
     try:
         torch_npu.npu.set_device(0)
     except Exception as e:
         pytest.skip(f"NPU device not available: {e}")
 
-    request = 5
-    beam_size = 512 # must >= 128
-    q_seqlen = 1  # must be 1
-    kv_seqlen = 4090  # shared_kv_len
-    unshared_seqlen = 2
-    num_head = 8
-    kv_heads = 8
-    embedding_size = 128
-    block_size = 128
-    is_varied_len = 0
-    mask_type = 0
-    shared_kv_type = 1
-    unshared_kv_type = 0
+    # request = 5
+    # beam_size = 512 # must >= 128
+    # q_seqlen = 1  # must be 1
+    # kv_seqlen = 4090  # shared_kv_len
+    # unshared_seqlen = 2
+    # num_head = 8
+    # kv_heads = 8
+    # embedding_size = 128
+    # block_size = 128
+    # is_varied_len = 0
+    # mask_type = 0
+    # shared_kv_type = 1
+    # unshared_kv_type = 0
 
-    q_seqlen_list, kv_seqlen_list = gen_seqlen(q_seqlen, kv_seqlen, is_varied_len, request)
+    q_seqlen_list, kv_seqlen_list = gen_seqlen(q_seqlen, kv_seqlen, is_varied_len, request_num)
     max_kv_seqlen = max(kv_seqlen_list)
-    num_blocks = request * ((max_kv_seqlen + block_size - 1) // block_size)
+    num_blocks = request_num * ((max_kv_seqlen + block_size - 1) // block_size)
 
     test_obj = TestFlashAttentionInfer()
     gen_data_params = test_obj.GenDataParams(

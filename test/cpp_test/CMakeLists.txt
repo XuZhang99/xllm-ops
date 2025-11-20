@@ -173,15 +173,15 @@ target_link_libraries(group_gemm_gtest PRIVATE
   GTest::gtest_main
 )
 
-# # Beam Search GTest version
-# add_executable(beam_search_test
-#   beam_search_test.cpp
-# )
-# target_link_libraries(beam_search_test PRIVATE 
-#   aclnn_common
-#   GTest::gtest 
-#   GTest::gtest_main
-# )
+# Beam Search GTest version
+add_executable(beam_search_test
+  beam_search_test.cpp
+)
+target_link_libraries(beam_search_test PRIVATE 
+  aclnn_common
+  GTest::gtest 
+  GTest::gtest_main
+)
 
 # Group MLA GTest version
 add_executable(multi_latent_attention_gtest

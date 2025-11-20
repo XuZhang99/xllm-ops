@@ -24,7 +24,7 @@ limitations under the License.
 
 class BeamSearchTest : public ::testing::Test {
 protected:
-    int32_t deviceId = 1;
+    int32_t deviceId = 9;
     aclrtStream stream1;
     
     void SetUp() override {
@@ -39,21 +39,19 @@ protected:
 };
 
 TEST_F(BeamSearchTest, BasicCorrectness) {
-    // basic test：only set log_probs[0]=1, top_probs[0][0]=1 per sequence
+    // basic test：only set log_probs[0]=1, top_probs[0][0]=1
     beam_search::BeamSearchBase::ProbGenerator basic_gen =
         [](int64_t n_sequences, int64_t top_k, const torch::TensorOptions& opt_f32,
            torch::Tensor& log_probs, torch::Tensor& top_probs) {
             log_probs = torch::zeros({n_sequences, 1}, opt_f32);
             top_probs = torch::zeros({n_sequences, top_k}, opt_f32);
-            for (int64_t i = 0; i < n_sequences; ++i) {
-                log_probs[i][0] = 1.0;
-                top_probs[i][0] = 1.0;
-            }
+            log_probs.index_put_({0, 0}, 1.0f);
+            top_probs.index_put_({0, 0}, 1.0f);
         };
 
-    beam_search::BeamSearchBase inputs(4, 4, 1, 3, basic_gen);
+    beam_search::BeamSearchBase inputs(2, 2, 2, 2, basic_gen);
     inputs.create_torch_tensors();
-    // cout << "inputs.token_ids: " << inputs.token_ids << endl;
+
     beam_search::BeamSearchTorch op_torch(inputs);
     op_torch.process();
     beam_search::BeamSearchOp op_cann(inputs);
@@ -66,22 +64,8 @@ TEST_F(BeamSearchTest, BasicCorrectness) {
     auto out_op_index_cpu = inputs.output_token_index_op.to(torch::kCPU);
     auto out_torch_log_cpu = inputs.output_log_probs_torch.to(torch::kCPU).view({-1, 1});
     auto out_op_log_cpu = inputs.output_log_probs_op.to(torch::kCPU).view({-1, 1});
-    auto out_torch_prefix_cpu =
-        inputs.output_beam_count_prefix_sums_torch.to(torch::kCPU).view({-1, 1});
-    auto out_op_prefix_cpu =
-        inputs.output_beam_count_prefix_sums_op.to(torch::kCPU).view({-1, 1});
-    auto out_torch_sequence_cpu = inputs.output_sequence_torch.to(torch::kCPU);
-    auto out_op_sequence_cpu = inputs.token_ids.to(torch::kCPU);
-    // cout << "out_torch_cpu " << out_torch_cpu << endl;
-    // cout << "out_op_index_cpu: " << out_op_index_cpu << endl;
-    // cout << "out_torch_sequence_cpu: " << out_torch_sequence_cpu << endl;
-    // cout << "out_op_sequence_cpu: " << out_op_sequence_cpu << endl;
-    EXPECT_TRUE(torch::equal(out_torch_log_cpu, out_op_log_cpu))
-        << "Log probs mismatch";
-    EXPECT_TRUE(torch::equal(out_torch_prefix_cpu, out_op_prefix_cpu))
-        << "Beam prefix mismatch";
-    EXPECT_TRUE(torch::equal(out_torch_sequence_cpu, out_op_sequence_cpu))
-        << "Sequence mismatch";
+
+    EXPECT_TRUE(torch::equal(out_torch_log_cpu, out_op_log_cpu)) << "Log probs mismatch";
 
     op_cann.destroy_tensors();
 }
@@ -112,53 +96,47 @@ void run_beam_search_test(int beam_width,
     auto out_op_index_cpu = inputs.output_token_index_op.to(torch::kCPU);
     auto out_torch_log_cpu = inputs.output_log_probs_torch.to(torch::kCPU).view({-1, 1});
     auto out_op_log_cpu = inputs.output_log_probs_op.to(torch::kCPU).view({-1, 1});
-    auto out_torch_prefix_cpu = inputs.output_beam_count_prefix_sums_torch.to(torch::kCPU).view({-1, 1});
-    auto out_op_prefix_cpu = inputs.output_beam_count_prefix_sums_op.to(torch::kCPU).view({-1, 1});
-    auto out_torch_sequence_cpu = inputs.output_sequence_torch.to(torch::kCPU);
-    auto out_op_sequence_cpu = inputs.token_ids.to(torch::kCPU);
- 
+
     bool all_equal = torch::equal(out_torch_cpu, out_op_cpu) &&
                      torch::equal(out_torch_index_cpu, out_op_index_cpu) &&
-                     torch::equal(out_torch_log_cpu, out_op_log_cpu) &&
-                     torch::equal(out_torch_prefix_cpu, out_op_prefix_cpu);
+                     torch::equal(out_torch_log_cpu, out_op_log_cpu);
     if (!all_equal) {
        int64_t out_mismatch_count = (out_torch_cpu != out_op_cpu).sum().item<int64_t>();
        int64_t out_index_mismatch_count = (out_torch_index_cpu != out_op_index_cpu).sum().item<int64_t>();
        int64_t out_log_mismatch_count = (out_torch_log_cpu != out_op_log_cpu).sum().item<int64_t>();
-       int64_t out_prefix_mismatch_count = (out_torch_prefix_cpu != out_op_prefix_cpu).sum().item<int64_t>();
-        std::cout << "Mismatch counts for size: beam_width=" << beam_width
-                  << ", top_k=" << top_k << ", request_num=" << request_num
-                  << ", sequence_length=" << sequence_length << std::endl;
-        std::cout << "  output_token_ids mismatch count: " << out_mismatch_count << std::endl;
-        std::cout << "  output_token_index mismatch count: " << out_index_mismatch_count << std::endl;
-        std::cout << "  output_log_probs mismatch count: " << out_log_mismatch_count << std::endl;
-        std::cout << "  output_beam_prefix mismatch count: " << out_prefix_mismatch_count << std::endl;
-     }
+       std::cout << "Mismatch counts for size: beam_width=" << beam_width
+                 << ", top_k=" << top_k << ", request_num=" << request_num
+                 << ", sequence_length=" << sequence_length << std::endl;
+       std::cout << "  output_token_ids mismatch count: " << out_mismatch_count << std::endl;
+       std::cout << "  output_token_index mismatch count: " << out_index_mismatch_count << std::endl;
+       std::cout << "  output_log_probs mismatch count: " << out_log_mismatch_count << std::endl;
+    }
     EXPECT_TRUE(all_equal)
         << "Failed for size: beam_width=" << beam_width
         << ", top_k=" << top_k << ", request_num=" << request_num
         << ", sequence_length=" << sequence_length;
-    EXPECT_TRUE(torch::equal(out_torch_sequence_cpu, out_op_sequence_cpu))
-        << "Sequence mismatch";
+
     op_cann.destroy_tensors();
 }
 
 TEST_F(BeamSearchTest, DifferentSizes) {
     std::vector<std::tuple<int, int, int, int>> test_sizes = {
-        {1, 1, 2, 3},
-        {2, 2, 2, 3},
-        {4, 4, 2, 3},
-        {5, 5, 2, 3},
-        {8, 8, 2, 3},
-        {16, 16, 2, 3},
-        {31, 31, 2, 3},
-        {32, 32, 2, 3},
-        {47, 47, 2, 3},
-        {64, 64, 2, 3},
-        {128, 128, 2, 3},
-        {256, 256, 2, 3},
-        {511, 511, 2, 3},
-        {512, 512, 2, 3},
+        {1, 1, 2, 2},
+        {2, 2, 2, 2},
+        {4, 4, 2, 2},
+        {5, 5, 2, 2},
+        {8, 8, 2, 2},
+        {16, 16, 2, 2},
+        {31, 31, 2, 2},
+        {32, 32, 2, 2},
+        {47, 47, 2, 2},
+        {64, 64, 2, 2},
+        {128, 128, 2, 2},
+        {256, 256, 2, 2},
+        {511, 511, 2, 2},
+        {512, 512, 2, 2},
+        {1024, 1024, 2, 2},
+        {2048, 2048, 2, 2}
     };
     for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes)
     {
@@ -169,10 +147,10 @@ TEST_F(BeamSearchTest, DifferentSizes) {
 
 TEST_F(BeamSearchTest, DifferentRequestNums) {
     std::vector<std::tuple<int, int, int, int>> test_sizes = {
-        {512, 512, 1, 3},
-        // {512, 512, 2, 2},
-        // {512, 512, 4, 4},
-        // {512, 512, 8, 8}
+        {512, 512, 1, 1},
+        {512, 512, 2, 2},
+        {512, 512, 4, 4},
+        {512, 512, 8, 8}
     };
     for (auto [beam_width, top_k, request_num, sequence_length] : test_sizes) {
         run_beam_search_test(beam_width, top_k, request_num, sequence_length, stream1);

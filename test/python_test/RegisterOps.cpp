@@ -78,10 +78,10 @@ at::Tensor x_attention_impl_npu(const at::Tensor& query,
                value_cache,
                unshared_key,
                unshared_value,
-               shared_block_tables,
                unshared_block_tables,
                actual_shared_kvlen,
                decode_step,
+               shared_block_tables,
                attnOut);
 
   return attnOut;
