@@ -193,11 +193,22 @@ target_link_libraries(multi_latent_attention_gtest PRIVATE
   GTest::gtest_main
 )
 
+# Convert KV Cache Format GTest version
+add_executable(convert_kv_cache_format_test
+  convert_kv_cache_format_test.cpp
+)
+target_link_libraries(convert_kv_cache_format_test PRIVATE 
+  aclnn_common
+  GTest::gtest 
+  GTest::gtest_main
+)
+
 # Add tests
 # add_test(AllTestsInBeamSearch beam_search_test)
 add_test(AllTestsInPPMatmul pp_matmul_test)
 add_test(AllTestsInGroupGemm group_gemm_gtest)
 add_test(AllTestsInMultiLatentAttention multi_latent_attention_gtest)
+add_test(AllTestsInConvertKvCacheFormat convert_kv_cache_format_test)
 
 # GoogleTest automatic discovery
 include(GoogleTest)
@@ -205,3 +216,4 @@ include(GoogleTest)
 gtest_discover_tests(pp_matmul_test)
 gtest_discover_tests(group_gemm_gtest)
 gtest_discover_tests(multi_latent_attention_gtest)
+gtest_discover_tests(convert_kv_cache_format_test)
