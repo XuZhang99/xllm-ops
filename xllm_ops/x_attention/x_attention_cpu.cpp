@@ -169,6 +169,12 @@ void TilingXAttentionFunc::FillUnsharedSplitCoreTilingData()
   }
   uint32_t maxGroupCountPerLoop = std::min(UNSHARED_Q_TILE / tiling_data_.get_groupSize(),
                                            UNSHARED_KV_TILE / tiling_data_.get_maxDecodeStep());
+  // The current unshared x_attention kernel is unstable on groupSize == 2 when
+  // a single loop consumes 64 KV groups. Cap the loop to 32 groups to stay on
+  // the verified-good execution path used by the same kernel family.
+  if (tiling_data_.get_groupSize() == 2) {
+    maxGroupCountPerLoop = std::min(maxGroupCountPerLoop, static_cast<uint32_t>(32));
+  }
   // ensure each task handles same group count
   while (maxGroupCountPerLoop > 1 &&
          (totalGroupCount % maxGroupCountPerLoop != 0 || maxGroupCountPerLoop % FLOAT_BLOCK_SIZE != 0))
