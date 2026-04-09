@@ -20,3 +20,20 @@ def select_unshared_kv_npu(beam_index, x_key_block, x_value_block, block_table, 
 # beam search group
 def beam_search_group_npu(log_probs, top_tokens, top_probs, sequence, current_step):
     return custom_ops_lib.beam_search_group(log_probs, top_tokens, top_probs, sequence, current_step)
+
+# causal_conv1d_fn
+def causal_conv1d_npu( x, weight, conv_state, bias_opt, query_start_loc_opt,
+                    cache_indices_opt,
+                    initial_state_mode_opt,
+                    num_accepted_tokens_opt,
+                    activation_mode,
+                    pad_slot_id,
+                    run_mode):
+    return  custom_ops_lib.causal_conv1d( x, weight, conv_state, bias_opt, query_start_loc_opt,
+                    cache_indices_opt,
+                    initial_state_mode_opt,
+                    num_accepted_tokens_opt,
+                    activation_mode,
+                    pad_slot_id,
+                    run_mode)
+

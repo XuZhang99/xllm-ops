@@ -107,9 +107,43 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor> beam_sear
   return std::make_tuple(out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, out_sequence);
 }
 
+at::Tensor causal_conv1d(
+    const at::Tensor& x,
+    const at::Tensor& weight,
+    const at::Tensor& conv_state,    
+    const c10::optional<at::Tensor>& bias_opt,
+    at::IntArrayRef query_start_loc_opt,
+    at::IntArrayRef cache_indices_opt,
+    at::IntArrayRef initial_state_mode_opt,
+    at::IntArrayRef num_accepted_tokens_opt,
+    int64_t  activation_mode,
+    int64_t  pad_slot_id,
+    int64_t  run_mode)
+{
+    at::Tensor output = at::empty(x.sizes(), x.options());
+    EXEC_NPU_CMD(aclnnCausalConv1d,
+                    x,                 
+                    weight,
+                    bias_opt,
+                    conv_state,
+                    query_start_loc_opt,
+                    cache_indices_opt,
+                    initial_state_mode_opt,
+                    num_accepted_tokens_opt,
+                    activation_mode,
+                    pad_slot_id,
+                    run_mode,
+                    output		    
+                ); 
+
+    return output;
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("select_unshared_kv", &select_unshared_kv_impl_npu, "select_unshared_kv");
   m.def("cache_unshared_kv", &cache_unshared_kv_impl_npu, "cache_unshared_kv");
   m.def("x_attention", &x_attention_impl_npu, "x_attention");
   m.def("beam_search_group", &beam_search_group_impl_npu, "beam_search_group");
+  m.def("causal_conv1d", &causal_conv1d, "causal_conv1d");
 }
+
