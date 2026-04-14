@@ -120,24 +120,22 @@ class UnsharedFAInferKernel {
         uint64_t pRelativeOffset = 0;
         uint64_t actualPOffset = 0;
         uint64_t actualSOffset = 0;
+        auto kvLen = unshareGroupCountPerLoop * maxDecodeStep;
+        auto qLen = unshareGroupCountPerLoop * groupSize;
+        auto kvLenAlign = (kvLen + 7) / 8 * 8;
+        LayoutQ layoutQTemp(qLen, embeddingSize);
+        LayoutK layoutKTemp(embeddingSize, kvLen);
+        LayoutV layoutVTemp(kvLen, embeddingSize);
+        LayoutO layoutOTemp(qLen, embeddingSize);
+        LayoutS layoutSTemp(qLen, kvLen, kvLenAlign);
+        LayoutP layoutPTemp(qLen, kvLen, kvLenAlign);
 
-        LayoutQ layoutQTemp(unshareGroupCountPerLoop * groupSize, embeddingSize);
-        LayoutK layoutKTemp(embeddingSize, unshareGroupCountPerLoop * maxDecodeStep);
-        LayoutV layoutVTemp(unshareGroupCountPerLoop * maxDecodeStep, embeddingSize);
-        LayoutO layoutOTemp(unshareGroupCountPerLoop * groupSize, embeddingSize);
-        LayoutS layoutSTemp(unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep);
-        LayoutP layoutPTemp(unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep);
-        GemmCoord actualBlockShapeQK{unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep,
-                                     embeddingSize};
-        GemmCoord actualBlockShapePV{unshareGroupCountPerLoop * groupSize, embeddingSize,
-                                     unshareGroupCountPerLoop * maxDecodeStep};
+        GemmCoord actualBlockShapeQK{qLen, kvLen, embeddingSize};
+        GemmCoord actualBlockShapePV{qLen, embeddingSize, kvLen};
         for (uint32_t taskIdx = taskStartIdx, nextTaskIdx; taskIdx < taskEndIdx + PRE_LAUNCH; ++taskIdx) {
             if (taskIdx < taskEndIdx) {
                 sRelativeOffset = (taskIdx % (PRE_LAUNCH + 1)) * UNSHARED_WORKSPACE_BLOCK_SIZE_DB;
                 actualSOffset = gmSOffset + sRelativeOffset;
-                if (taskIdx >= taskStartIdx + PRE_LAUNCH) {
-                    AscendC::PipeBarrier<PIPE_MTE2>();
-                }
                 blockMmadQK(
                     gQ[gmQOffset], gUnsharedK[gmKOffset], gS[actualSOffset],
                     layoutQTemp, layoutKTemp, layoutSTemp, actualBlockShapeQK);
@@ -218,8 +216,11 @@ class UnsharedFAInferKernel {
         uint64_t actualSPOffset = 0;
         int64_t gmGlBaseBlockSize = groupSize * unshareGroupCountPerLoop;
         uint64_t gmUnsharedGmGlOffset = taskStartIdx * gmGlBaseBlockSize;
-        LayoutS layoutSTemp(unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep);
-        LayoutP layoutPTemp(unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep);
+        auto kvLen = unshareGroupCountPerLoop * maxDecodeStep;
+        auto qLen = unshareGroupCountPerLoop * groupSize;
+        auto kvLenAlign = (kvLen + 7) / 8 * 8;
+        LayoutS layoutSTemp(qLen, kvLen, kvLenAlign);
+        LayoutP layoutPTemp(qLen, kvLen, kvLenAlign);        
         GemmCoord actualBlockShapeQK{unshareGroupCountPerLoop * groupSize, unshareGroupCountPerLoop * maxDecodeStep,
                                      embeddingSize};
         for (uint32_t taskIdx = taskStartIdx; taskIdx < taskEndIdx; ++taskIdx) {
