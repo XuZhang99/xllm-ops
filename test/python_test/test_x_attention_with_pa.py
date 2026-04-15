@@ -20,7 +20,7 @@ def get_max_block_num(shared_kv_lens, unshared_kv_len, block_size):
 @pytest.mark.parametrize("q_head_num, kv_head_num", [(16, 8), (32, 8)])
 @pytest.mark.parametrize("head_dim", [128])
 @pytest.mark.parametrize("batch", [1, 6, 8])
-@pytest.mark.parametrize("beam_size", [128, 256, 512])
+@pytest.mark.parametrize("beam_size", [32, 64, 128, 256, 512])
 @pytest.mark.parametrize("max_decode_step", [2, 4, 8, 12, 16, 20, 50, 100])
 @pytest.mark.parametrize("prompt_length", [128, 256, 512, 1024])
 def test_x_attention_with_pa(dtype, q_head_num, kv_head_num, head_dim, batch, beam_size, max_decode_step, prompt_length):

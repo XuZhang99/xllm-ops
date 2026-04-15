@@ -154,6 +154,9 @@ uint32_t TilingXAttentionFunc::GetQNBlockTile(int64_t qSeqlen, uint32_t groupSiz
     uint32_t qNBlockTile = (qRowNumCeil / qSeqlen) / 2 * 2;
     qNBlockTile = std::min(qNBlockTile, groupSize);
     qNBlockTile = std::max(qNBlockTile, static_cast<uint32_t>(1));
+    // The current shared x_attention kernel has accuracy error on qNBlockTile != 1.
+    // Limit the qNBlockTile parameter to 1 to ensure correct kernel results until the issue is fixed.
+    qNBlockTile = 1;
     return qNBlockTile;
 }
 

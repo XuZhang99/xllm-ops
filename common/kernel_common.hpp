@@ -83,6 +83,9 @@ uint32_t GetQNBlockTile(uint32_t qSeqlen, uint32_t groupSize) {
     uint32_t qNBlockTile = (128 / qSeqlen) / 2 * 2;
     qNBlockTile = qNBlockTile < groupSize ? qNBlockTile : groupSize;
     qNBlockTile = qNBlockTile < 1 ? 1 : qNBlockTile;
+    // The current shared x_attention kernel has accuracy error on qNBlockTile != 1.
+    // Limit the qNBlockTile parameter to 1 to ensure correct kernel results until the issue is fixed.
+    qNBlockTile = 1;
     return qNBlockTile;
 }
 
