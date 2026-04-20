@@ -37,3 +37,7 @@ target_include_directories(opsproto PRIVATE
 install(FILES recurrent_gated_delta_rule.cpp
     DESTINATION ${ASCEND_IMPL_OUT_DIR}/dynamic
 )
+
+install(FILES aclnn_recurrent_gated_delta_rule.h
+        DESTINATION ${ACLNN_INC_INSTALL_DIR} OPTIONAL
+)
