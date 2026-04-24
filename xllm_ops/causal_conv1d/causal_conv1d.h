@@ -37,6 +37,9 @@ enum SeqTaskWindowMode : int32_t {
     SEQ_TASK_WINDOW_MODE_DECODE2D = 2,
 };
 
+inline constexpr int32_t INIT_STATE_SYNCALL_NEED_SIZE = 8;
+inline constexpr int32_t INIT_STATE_SYNCALL_MAX_BLOCKS = 64;
+
 struct SeqTaskWindow {
     bool valid = false;
     int32_t start = 0;
@@ -120,6 +123,7 @@ protected:
                                     int32_t len, int32_t channelStart, int32_t baseDim, int32_t dim);
     __aicore__ inline void InitRingSeqSplit(int32_t cacheIdx, bool hasInit, int32_t seqStart, int32_t tileStart,
                                             int32_t tileLen, int32_t channelStart, int32_t baseDim, int32_t dim);
+    __aicore__ inline void PrefetchInitStatesToWorkspace(int32_t channelStart, int32_t baseDimSize);
     __aicore__ inline void RestoreFnLocalPartials(int32_t baseDim);
     __aicore__ inline void ComputeFnRollingOutput(int32_t slotCurr, int32_t baseDim);
     __aicore__ inline void AdvanceFnLocalPartials(int32_t slotCurr, int32_t baseDim);
@@ -176,6 +180,10 @@ protected:
     TEventID stateShiftMte2ToMte3Event_;
     TEventID stateShiftVToMte3Event_;
     TEventID stateShiftMte3ToMte2Event_;
+    TEventID initSnapshotMte2ToMte3Event_;
+    TEventID initSnapshotMte3ToMte2Event_;
+    TEventID initSyncVToMte3Event_;
+    TEventID initSyncMte3ToVEvent_;
     TEventID specWritebackMte2ToMte3Event_[2];
     TEventID specWritebackMte3ToMte2Event_[2];
 
@@ -188,20 +196,16 @@ protected:
     GlobalTensor<int64_t> initialStateModeGm;
     GlobalTensor<int64_t> numAcceptedTokensGm;
     GlobalTensor<T> yGm;
+    GlobalTensor<int32_t> initStateSyncGm_;
+    GlobalTensor<T> initStateWorkspaceGm_;
 
     const CausalConv1dTilingData *tilingData_{nullptr};
-    bool weightCacheValid_{false};
-    int32_t cachedC0_{-1};
-    int32_t cachedDimTileSize_{-1};
 };
 
 template <CAUSAL_CONV1D_TEMPLATE_ARGS>
 __aicore__ inline void CAUSAL_CONV1D_CLASS::ResetRuntimeState(const CausalConv1dTilingData *tilingData)
 {
     tilingData_ = tilingData;
-    weightCacheValid_ = false;
-    cachedC0_ = -1;
-    cachedDimTileSize_ = -1;
 }
 
 template <CAUSAL_CONV1D_TEMPLATE_ARGS>
@@ -231,6 +235,10 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::AllocEvents()
     stateShiftMte2ToMte3Event_ = GetTPipePtr()->AllocEventID<HardEvent::MTE2_MTE3>();
     stateShiftVToMte3Event_ = GetTPipePtr()->AllocEventID<HardEvent::V_MTE3>();
     stateShiftMte3ToMte2Event_ = GetTPipePtr()->AllocEventID<HardEvent::MTE3_MTE2>();
+    initSnapshotMte2ToMte3Event_ = GetTPipePtr()->AllocEventID<HardEvent::MTE2_MTE3>();
+    initSnapshotMte3ToMte2Event_ = GetTPipePtr()->AllocEventID<HardEvent::MTE3_MTE2>();
+    initSyncVToMte3Event_ = GetTPipePtr()->AllocEventID<HardEvent::V_MTE3>();
+    initSyncMte3ToVEvent_ = GetTPipePtr()->AllocEventID<HardEvent::MTE3_V>();
     specWritebackMte2ToMte3Event_[0] = GetTPipePtr()->AllocEventID<HardEvent::MTE2_MTE3>();
     specWritebackMte2ToMte3Event_[1] = GetTPipePtr()->AllocEventID<HardEvent::MTE2_MTE3>();
     specWritebackMte3ToMte2Event_[0] = GetTPipePtr()->AllocEventID<HardEvent::MTE3_MTE2>();
@@ -255,6 +263,10 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ReleaseEvents()
     GetTPipePtr()->ReleaseEventID<HardEvent::MTE2_MTE3>(stateShiftMte2ToMte3Event_);
     GetTPipePtr()->ReleaseEventID<HardEvent::V_MTE3>(stateShiftVToMte3Event_);
     GetTPipePtr()->ReleaseEventID<HardEvent::MTE3_MTE2>(stateShiftMte3ToMte2Event_);
+    GetTPipePtr()->ReleaseEventID<HardEvent::MTE2_MTE3>(initSnapshotMte2ToMte3Event_);
+    GetTPipePtr()->ReleaseEventID<HardEvent::MTE3_MTE2>(initSnapshotMte3ToMte2Event_);
+    GetTPipePtr()->ReleaseEventID<HardEvent::V_MTE3>(initSyncVToMte3Event_);
+    GetTPipePtr()->ReleaseEventID<HardEvent::MTE3_V>(initSyncMte3ToVEvent_);
     GetTPipePtr()->ReleaseEventID<HardEvent::MTE2_MTE3>(specWritebackMte2ToMte3Event_[0]);
     GetTPipePtr()->ReleaseEventID<HardEvent::MTE2_MTE3>(specWritebackMte2ToMte3Event_[1]);
     GetTPipePtr()->ReleaseEventID<HardEvent::MTE3_MTE2>(specWritebackMte3ToMte2Event_[0]);
@@ -548,7 +560,6 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ComputeFnRollingOutput(int32_t slotC
     if (hasActivation) {
         PipeBarrier<PIPE_V>();
         Silu(currF, state0F, baseDim);
-        PipeBarrier<PIPE_V>();
     }
 }
 
@@ -849,9 +860,6 @@ __aicore__ inline bool CAUSAL_CONV1D_CLASS::ResolveSeqCacheIndex(int32_t seq, bo
 template <CAUSAL_CONV1D_TEMPLATE_ARGS>
 __aicore__ inline bool CAUSAL_CONV1D_CLASS::ResolveSeqHasInit(int32_t seq, bool hasInitialStateMode) const
 {
-    if constexpr (kIsUpdateMode) {
-        return true;
-    }
     return hasInitialStateMode ? (initialStateModeGm.GetValue(seq) != 0) : false;
 }
 
@@ -882,7 +890,7 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ProcessDefaultByWindowMode()
     const int32_t baseDimCnt = static_cast<int32_t>(tilingData_->baseDimCnt);
     const int32_t width = static_cast<int32_t>(tilingData_->width);
     const bool hasCacheIndices = (tilingData_->hasCacheIndices != 0);
-    const bool hasInitialStateMode = (tilingData_->hasInitialStateMode != 0);
+    const bool hasInit = true;
     const bool isSpecDecodingGlobal = IsUpdateSpecDecodingEnabled();
 
     const uint32_t blockIdx = GetBlockIdx();
@@ -914,7 +922,6 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ProcessDefaultByWindowMode()
             continue;
         }
 
-        const bool hasInit = ResolveSeqHasInit(seq, hasInitialStateMode);
         int32_t stateTokenOffset = 0;
         if (isSpecDecodingGlobal) {
             int32_t accepted = static_cast<int32_t>(numAcceptedTokensGm.GetValue(seq));
@@ -927,14 +934,7 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ProcessDefaultByWindowMode()
             }
         }
 
-        const bool weightCacheHit =
-            weightCacheValid_ && (cachedC0_ == channelStart) && (cachedDimTileSize_ == curBaseDim);
-        if (!weightCacheHit) {
-            LoadWeightAndBias(channelStart, curBaseDim);
-            weightCacheValid_ = true;
-            cachedC0_ = channelStart;
-            cachedDimTileSize_ = curBaseDim;
-        }
+        LoadWeightAndBias(channelStart, curBaseDim);
 
         InitRing(cacheIdx, hasInit, stateTokenOffset, start, len, channelStart, curBaseDim, dim);
         RunSeq(start, len, channelStart, curBaseDim, dim);

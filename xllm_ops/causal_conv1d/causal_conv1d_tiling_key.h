@@ -11,7 +11,7 @@
 
 /*!
  * \file causal_conv1d_tiling_key.h
- * \brief causal_conv1d tiling key declare
+ * \brief
  */
 
 #ifndef __CAUSAL_CONV1D_TILING_KEY_H__
@@ -44,7 +44,6 @@ ASCENDC_TPL_ARGS_DECL(CausalConv1d,
                          ASCENDC_TPL_UINT_SEL(fnPlanKey, ASCENDC_TPL_UI_LIST, FN_PLAN),                       \
                          ASCENDC_TPL_TILING_STRUCT_SEL(CausalConv1dTilingData))
 
-// Keep entries in encoded tiling-key order: real-device sub-kernel dispatch is sensitive to declaration order.
 ASCENDC_TPL_SEL(
     CAUSAL_CONV1D_TPL_SEL_ENTRY(CAUSAL_CONV1D_TPL_RUN_MODE_UPDATE, CAUSAL_CONV1D_TPL_WIDTH_RUNTIME,
                                 CAUSAL_CONV1D_TPL_FN_PLAN_INVALID),

@@ -60,6 +60,11 @@ __aicore__ inline FnDirectBlockTask ResolveFnDirectBlockTask(int32_t blockIdx, i
     return task;
 }
 
+__aicore__ inline bool IsFnInitStateSnapshotOwnerBlock(const FnDirectBlockTask &task)
+{
+    return task.valid && task.tokenTileId == 0;
+}
+
 template <CAUSAL_CONV1D_TEMPLATE_ARGS>
 __aicore__ inline int32_t CAUSAL_CONV1D_CLASS::FindVarlenSeqByToken(int32_t tokenIdx) const
 {
@@ -118,7 +123,11 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::InitRingSeqSplit(int32_t cacheIdx, b
         } else if (hasInit) {
             const int32_t statePos = srcTok - seqStart + historyCount;
             const int64_t stateOffset = stateBaseOffset + static_cast<int64_t>(statePos) * dim;
-            DataCopy(histSlot, convStatesGm[stateOffset], baseDim);
+            if (tilingData_->hasInitStateWorkspace != 0) {
+                DataCopy(histSlot, initStateWorkspaceGm_[stateOffset], baseDim);
+            } else {
+                DataCopy(histSlot, convStatesGm[stateOffset], baseDim);
+            }
             hasGmHistoryCopy = true;
         } else {
             Duplicate(histSlot, static_cast<T>(0), baseDim);
@@ -151,16 +160,11 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ProcessFnChunk(int32_t cacheIdx, boo
                                                            int32_t seqLen, int32_t chunkStart, int32_t chunkLen,
                                                            int32_t channelStart, int32_t baseDim, int32_t dim)
 {
-    const bool weightCacheHit = weightCacheValid_ && (cachedC0_ == channelStart) && (cachedDimTileSize_ == baseDim);
-    if (!weightCacheHit) {
-        LoadWeightAndBias(channelStart, baseDim);
-        weightCacheValid_ = true;
-        cachedC0_ = channelStart;
-        cachedDimTileSize_ = baseDim;
-    }
-
+    LoadWeightAndBias(channelStart, baseDim);
     InitRingSeqSplit(cacheIdx, hasInit, seqStart, chunkStart, chunkLen, channelStart, baseDim, dim);
+
     RunSeq(chunkStart, chunkLen, channelStart, baseDim, dim);
+
     MaybeWriteBackSeqSplitTailChunk(chunkStart, chunkLen, seqStart, seqLen, cacheIdx, channelStart, baseDim, dim);
     DrainTaskMte3();
 }
@@ -177,6 +181,30 @@ CAUSAL_CONV1D_CLASS::MaybeWriteBackSeqSplitTailChunk(int32_t chunkStart, int32_t
 
     DrainTaskMte3();
     WriteBackState(cacheIdx, chunkLen, channelStart, baseDim, dim);
+}
+
+template <CAUSAL_CONV1D_TEMPLATE_ARGS>
+__aicore__ inline void CAUSAL_CONV1D_CLASS::PrefetchInitStatesToWorkspace(int32_t channelStart, int32_t baseDimSize)
+{
+    if (tilingData_->hasInitStateWorkspace == 0) {
+        return;
+    }
+
+    const int32_t dim = tilingData_->dim;
+    const int32_t stateLen = tilingData_->stateLen;
+    const int32_t numCacheLines = tilingData_->numCacheLines;
+    LocalTensor<T> tmpBuf = inBuf.Get<T>()[0 * MAX_BLOCK_DIM];
+
+    const int64_t totalRows = static_cast<int64_t>(numCacheLines) * stateLen;
+    for (int64_t row = 0; row < totalRows; ++row) {
+        const int64_t rowOffset = row * dim + channelStart;
+        DataCopy(tmpBuf, convStatesGm[rowOffset], baseDimSize);
+        SetFlag<HardEvent::MTE2_MTE3>(initSnapshotMte2ToMte3Event_);
+        WaitFlag<HardEvent::MTE2_MTE3>(initSnapshotMte2ToMte3Event_);
+        DataCopy(initStateWorkspaceGm_[rowOffset], tmpBuf, baseDimSize);
+        SetFlag<HardEvent::MTE3_MTE2>(initSnapshotMte3ToMte2Event_);
+        WaitFlag<HardEvent::MTE3_MTE2>(initSnapshotMte3ToMte2Event_);
+    }
 }
 
 template <CAUSAL_CONV1D_TEMPLATE_ARGS>
@@ -197,17 +225,14 @@ __aicore__ inline void CAUSAL_CONV1D_CLASS::ProcessVarlenTokenTiled()
     const int32_t blockIdx = static_cast<int32_t>(GetBlockIdx());
     const auto blockTask = ResolveFnDirectBlockTask(blockIdx, tokenBlockCnt, tokenBlockSize, cuSeqlen, baseDimCnt,
                                                     baseDim, dim);
+    if (tilingData_->hasInitStateWorkspace != 0) {
+        if (IsFnInitStateSnapshotOwnerBlock(blockTask)) {
+            PrefetchInitStatesToWorkspace(blockTask.channelStart, blockTask.baseDimSize);
+        }
+        SyncAll();
+    }
     if (!blockTask.valid) {
         return;
-    }
-
-    const bool weightCacheHit =
-        weightCacheValid_ && (cachedC0_ == blockTask.channelStart) && (cachedDimTileSize_ == blockTask.baseDimSize);
-    if (!weightCacheHit) {
-        LoadWeightAndBias(blockTask.channelStart, blockTask.baseDimSize);
-        weightCacheValid_ = true;
-        cachedC0_ = blockTask.channelStart;
-        cachedDimTileSize_ = blockTask.baseDimSize;
     }
 
     int32_t seq = 0;

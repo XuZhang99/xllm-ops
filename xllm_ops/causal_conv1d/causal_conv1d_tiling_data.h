@@ -11,7 +11,7 @@
 
 /*!
  * \file causal_conv1d_tiling_data.h
- * \brief tiling data struct
+ * \brief
  */
 
 #ifndef CAUSAL_CONV1D_TILING_DATA_H_
@@ -50,18 +50,18 @@ struct CausalConv1dTilingData {
 
     int64_t batch;
 
-    // attrs / runtime metadata
-    int64_t activationMode; // 0/1
-    int64_t padSlotId;      // default -1
-    int64_t hasBias;        // 0/1
+    int64_t activationMode;
+    int64_t padSlotId;
+    int64_t hasBias;
 
     int64_t baseDim;
     int64_t baseDimCnt;
 
-    int64_t hasNumAcceptedTokens; // 0/1
+    int64_t hasNumAcceptedTokens;
 
-    int64_t hasCacheIndices;     // 0/1
-    int64_t hasInitialStateMode; // 0/1
+    int64_t hasCacheIndices;
+    int64_t hasInitialStateMode;
+    int64_t hasInitStateWorkspace;
 
     int64_t tokenBlockSize;
     int64_t tokenBlockCnt;

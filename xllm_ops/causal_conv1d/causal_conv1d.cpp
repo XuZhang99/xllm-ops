@@ -45,14 +45,10 @@ __global__ __aicore__ void causal_conv1d(GM_ADDR x, GM_ADDR weight, GM_ADDR bias
 {
     REGISTER_TILING_DEFAULT(CausalConv1dTilingData);
     GET_TILING_DATA(tilingData, tiling);
-    KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_AIV_ONLY);
-    GM_ADDR userWorkspace = nullptr;
+    KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIV_1_0);
+    GM_ADDR userWorkspace = workspace;
     if (workspace != nullptr) {
-    	AscendC::SetSysWorkspaceForce(workspace);
-	userWorkspace = AscendC::GetUserWorkspace(workspace);
-	if (userWorkspace == nullptr) {
-	   userWorkspace = workspace;
-	}
+        userWorkspace = AscendC::GetUserWorkspace(workspace);
     }
 
     RunCausalConv1d<DTYPE_X, runModeKey, widthKey, fnPlanKey>(

@@ -11,7 +11,6 @@
 
 /*!
  * \file causal_conv1d_common.h
- * \brief Common utilities and constants for CausalConv1D prefill kernel.
  */
 
 #ifndef CAUSAL_CONV1D_COMMON_H

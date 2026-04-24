@@ -22,10 +22,9 @@ class CausalConv1dUpdate
                           CAUSAL_CONV1D_TPL_FN_PLAN_INVALID> {
 public:
     __aicore__ inline void Init(GM_ADDR x, GM_ADDR weight, GM_ADDR bias, GM_ADDR convStates, GM_ADDR queryStartLoc,
-                                GM_ADDR cacheIndices, GM_ADDR initialStateMode, GM_ADDR numAcceptedTokens, GM_ADDR y,
-                                GM_ADDR workspace, const CausalConv1dTilingData *tilingData)
+                                GM_ADDR cacheIndices, GM_ADDR, GM_ADDR numAcceptedTokens, GM_ADDR y, GM_ADDR workspace,
+                                const CausalConv1dTilingData *tilingData)
     {
-        (void)initialStateMode;
         (void)workspace;
         this->ResetRuntimeState(tilingData);
         this->xGm.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(x));

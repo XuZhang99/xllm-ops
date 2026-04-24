@@ -146,27 +146,22 @@ static ge::graphStatus CausalConv1dTilingFunc(gert::TilingContext *context)
     const uint32_t fnPlanKey = NormalizeFnPlanTilingKey(runModeKey, fnExecutionPlan);
     const uint32_t widthKey = NormalizeWidthTilingKey(runModeKey, static_cast<int32_t>(tiling->width));
 
-    if (HostTilingDebugEnabled()) {
-        std::fprintf(stderr,
-                     "CAUSAL_CONV1D_HOST_TILING_DEBUG: runMode=%u inputMode=%lld dim=%lld cuSeqlen=%lld batch=%lld "
-                     "baseDim=%lld baseDimCnt=%lld tokenBlockSize=%lld tokenBlockCnt=%lld explicitRangeCount=%lld "
-                     "blockDim=%u fnPlan=%u widthKey=%u\n",
-                     runModeKey, static_cast<long long>(tiling->inputMode), static_cast<long long>(tiling->dim),
-                     static_cast<long long>(tiling->cuSeqlen), static_cast<long long>(tiling->batch),
-                     static_cast<long long>(tiling->baseDim), static_cast<long long>(tiling->baseDimCnt),
-                     static_cast<long long>(tiling->tokenBlockSize), static_cast<long long>(tiling->tokenBlockCnt),
-                     static_cast<long long>(tiling->explicitTokenSeqRangeCount), blockDim, fnPlanKey, widthKey);
-        const int64_t debugRangeLimit =
-            (tiling->explicitTokenSeqRangeCount < 8) ? tiling->explicitTokenSeqRangeCount : 8;
-        for (int64_t i = 0; i < debugRangeLimit; ++i) {
-            std::fprintf(stderr, "CAUSAL_CONV1D_HOST_TILING_RANGE[%lld]=[%lld,%lld)\n",
-                         static_cast<long long>(i), static_cast<long long>(tiling->tokenTileStartSeq[i]),
-                         static_cast<long long>(tiling->tokenTileEndSeq[i]));
-        }
+    if (isFn && tiling->hasInitialStateMode != 0) {
+        constexpr int64_t kDtypeSize = 2;
+        constexpr int64_t kSyncBytesPerBlock = 32;
+        const int64_t snapshotWorkspaceSize = tiling->numCacheLines * tiling->stateLen * tiling->dim * kDtypeSize;
+        const int64_t workspaceSize =
+            ASCENDC_RESERVED_WORKSPACE_SIZE + snapshotWorkspaceSize;
+        OP_CHECK_IF(SetWorkspaceSize(context, static_cast<size_t>(workspaceSize)) != ge::GRAPH_SUCCESS,
+                    OP_LOGE(context, "SetWorkspaceSize error"), return ge::GRAPH_FAILED);
+        OP_CHECK_IF(context->SetScheduleMode(1) != ge::GRAPH_SUCCESS,
+                    OP_LOGE(context, "SetScheduleMode(1) error"), return ge::GRAPH_FAILED);
+        tiling->hasInitStateWorkspace = 1;
+    } else {
+        OP_CHECK_IF(SetWorkspaceSize(context, 0) != ge::GRAPH_SUCCESS, OP_LOGE(context, "SetWorkspaceSize error"),
+                    return ge::GRAPH_FAILED);
+        tiling->hasInitStateWorkspace = 0;
     }
-
-    OP_CHECK_IF(SetWorkspaceSize(context, 0) != ge::GRAPH_SUCCESS, OP_LOGE(context, "SetWorkspaceSize error"),
-                return ge::GRAPH_FAILED);
 
     const uint64_t tilingKey = GET_TPL_TILING_KEY(runModeKey, widthKey, fnPlanKey);
     context->SetTilingKey(tilingKey);

@@ -19,8 +19,6 @@
 
 namespace optiling::causal_conv1d_host {
 
-// NOTE: These constants are positional indices, not parameter names.
-// The actual GE operator uses camelCase: convStates, queryStartLoc, cacheIndices, initialStateMode.
 constexpr uint32_t X_INDEX = 0;
 constexpr uint32_t WEIGHT_INDEX = 1;
 constexpr uint32_t BIAS_INDEX = 2;
@@ -33,6 +31,8 @@ constexpr uint32_t NUM_ACCEPTED_TOKENS_INDEX = 7;
 constexpr int32_t ATTR_ACTIVATION_MODE_INDEX = 0;
 constexpr int32_t ATTR_PAD_SLOT_ID_INDEX = 1;
 constexpr int32_t ATTR_RUN_MODE_INDEX = 2;
+
+constexpr int64_t ASCENDC_RESERVED_WORKSPACE_SIZE = 16 * 1024 * 1024;
 
 struct CausalConv1dCompileInfo {
     uint64_t ubSize = 0;

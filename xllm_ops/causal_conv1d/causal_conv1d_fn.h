@@ -24,7 +24,6 @@ public:
                                 GM_ADDR workspace, const CausalConv1dTilingData *tilingData)
     {
         (void)numAcceptedTokens;
-        (void)workspace;
         this->ResetRuntimeState(tilingData);
         this->xGm.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(x));
         this->weightGm.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(weight));
@@ -34,18 +33,24 @@ public:
         this->cacheIndicesGm.SetGlobalBuffer(reinterpret_cast<__gm__ int64_t *>(cacheIndices));
         this->initialStateModeGm.SetGlobalBuffer(reinterpret_cast<__gm__ int64_t *>(initialStateMode));
         this->yGm.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(y));
+        if (tilingData->hasInitStateWorkspace != 0) {
+            const uint64_t syncElems =
+                static_cast<uint64_t>(GetBlockNum()) * INIT_STATE_SYNCALL_NEED_SIZE;
+            const uint64_t syncBytes = syncElems * sizeof(int32_t);
+            const uint64_t workspaceElems =
+                static_cast<uint64_t>(tilingData->numCacheLines) * tilingData->stateLen * tilingData->dim;
+            this->initStateSyncGm_.SetGlobalBuffer(reinterpret_cast<__gm__ int32_t *>(workspace), syncElems);
+            auto *workspaceBytes = reinterpret_cast<__gm__ uint8_t *>(workspace);
+            this->initStateWorkspaceGm_.SetGlobalBuffer(reinterpret_cast<__gm__ T *>(workspaceBytes + syncBytes),
+                                                        workspaceElems);
+        }
         this->InitSharedBuffersAndEvents();
     }
 
     __aicore__ inline void Process()
     {
-        const auto *tilingData = this->GetTilingData();
-        if (tilingData != nullptr && (tilingData->baseDimCnt > 1 || tilingData->inputMode != 0)) {
-            this->ProcessDefault();
-        } else {
-            this->ProcessVarlenTokenTiled();
-        }
-	this->ReleaseEvents();
+        this->ProcessVarlenTokenTiled();
+        this->ReleaseEvents();
     }
 };
 
