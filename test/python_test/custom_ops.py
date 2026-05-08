@@ -18,8 +18,8 @@ def select_unshared_kv_npu(beam_index, x_key_block, x_value_block, block_table, 
     return custom_ops_lib.select_unshared_kv(beam_index, x_key_block, x_value_block, block_table, group_token_num, decode_step, beam_size, layer_num)
 
 # beam search group
-def beam_search_group_npu(log_probs, top_tokens, top_probs, sequence, current_step):
-    return custom_ops_lib.beam_search_group(log_probs, top_tokens, top_probs, sequence, current_step)
+def beam_search_group_npu(log_probs, top_tokens, top_probs, sequence, current_step, top_k):
+    return custom_ops_lib.beam_search_group(log_probs, top_tokens, top_probs, sequence, current_step, top_k)
 
 # causal_conv1d_fn
 def causal_conv1d_npu( x, weight, conv_state, bias_opt, query_start_loc_opt,

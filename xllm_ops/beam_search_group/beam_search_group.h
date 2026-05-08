@@ -91,7 +91,8 @@ private:
   int32_t request_num;
   int32_t core_num;
   int32_t core_idx;
-  int32_t align_beam_width;
+  int32_t align_beam_width1;
+  int32_t align_beam_width2;
   int32_t align_top_k;
   int32_t min_size;
   int32_t step_size;
@@ -122,7 +123,7 @@ class ProcessSequence{
   __aicore__ inline ProcessSequence() {}
   __aicore__ inline void
   Init(GM_ADDR sequence, GM_ADDR token_index, GM_ADDR out_sequence, GM_ADDR out_token_ids, GM_ADDR top_tokens,
-     int32_t beam_width, int32_t current_step, int32_t max_decode_step, int32_t request_num);
+     int32_t beam_width, int32_t top_k, int32_t current_step, int32_t max_decode_step, int32_t request_num);
   __aicore__ inline void
   Process();
   __aicore__ inline void

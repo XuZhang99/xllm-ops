@@ -65,13 +65,15 @@ ge::graphStatus TilingBeamSearchGroupFunc::Init() {
   auto top_tokens_shape = tiling_context_->GetInputShape(2)->GetOriginShape();
   auto sequence_shape = tiling_context_->GetInputShape(3)->GetOriginShape();
   current_step_ = static_cast<uint32_t>(*(tiling_context_->GetAttrs()->GetAttrPointer<int>(0)));
+  int top_k_attr = *(tiling_context_->GetAttrs()->GetAttrPointer<int>(1));
+  // shape_num = sequence_shape.GetDim(sequence_shape.GetDimNum() - 2);
   max_decode_step_ = sequence_shape.GetDim(sequence_shape.GetDimNum() - 1);
   num_sequences_ = token_ids_shape.GetDim(token_ids_shape.GetDimNum() - 2);
   sequence_length_ = token_ids_shape.GetDim(token_ids_shape.GetDimNum() - 1);
-  top_k_ = top_tokens_shape.GetDim(top_tokens_shape.GetDimNum() - 1);
-  if (current_step_ == 0 && top_k_ != 1) {
-      OP_LOGE(context->GetNodeName(), "if current_step = 0, top_k must be 1");
-      return ge::GRAPH_FAILED;
+  top_k_ = (top_k_attr > 0) ? static_cast<uint32_t>(top_k_attr)
+                             : top_tokens_shape.GetDim(top_tokens_shape.GetDimNum() - 1);
+  if (current_step_ == 0) {
+      top_k_ = 1;
   }
   beam_width_ = sequence_shape.GetDim(sequence_shape.GetDimNum() - 2);
   request_num_ = num_sequences_ / beam_width_;
@@ -244,6 +246,7 @@ class BeamSearchGroup : public OpDef {
         .Format({ge::FORMAT_ND})
         .UnknownShapeFormat({ge::FORMAT_ND});
     this->Attr("current_step").Int(0);
+    this->Attr("top_k").Int(0);
     this->SetInferShape(ge::InferShape);
     this->AICore().SetTiling(optiling::TilingForBeamSearchGroupFunc);
     this->AICore().AddConfig("ascend910b");

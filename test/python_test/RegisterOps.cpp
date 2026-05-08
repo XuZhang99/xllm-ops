@@ -92,17 +92,20 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor> beam_sear
                                 const at::Tensor& top_tokens,
                                 const at::Tensor& top_probs,
                                 const at::Tensor& sequence,
-                                int64_t current_step
+                                int64_t current_step,
+                                int64_t top_k
                               ) {
   auto output_shape = log_probs.sizes();
   // Allocate outputs on the same device with appropriate dtypes
-  at::Tensor out_token_ids = at::zeros(output_shape, top_tokens.options());
-  at::Tensor out_token_index = at::zeros(output_shape, top_tokens.options());
-  at::Tensor out_log_probs = at::zeros(output_shape, log_probs.options());
-  at::Tensor out_beam_count_prefix_sums = at::zeros(output_shape, top_tokens.options());
-  at::Tensor out_sequence = at::zeros(sequence.sizes(), top_tokens.options());
+  auto beam_width = top_tokens.size(1);
+  auto request_num = output_shape[0] / beam_width;
+  at::Tensor out_token_ids = at::zeros({request_num, top_k}, top_tokens.options());
+  at::Tensor out_token_index = at::zeros({request_num, top_k}, top_tokens.options());
+  at::Tensor out_log_probs = at::zeros({request_num, top_k}, log_probs.options());
+  at::Tensor out_beam_count_prefix_sums = at::zeros({request_num, beam_width}, top_tokens.options());
+  at::Tensor out_sequence = at::zeros({request_num, top_k, current_step + 1}, top_tokens.options());
   EXEC_NPU_CMD(aclnnBeamSearchGroup,
-               log_probs, top_tokens, top_probs, sequence,current_step,
+               log_probs, top_tokens, top_probs, sequence, current_step, top_k,
                out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, out_sequence);
   return std::make_tuple(out_token_ids, out_token_index, out_log_probs, out_beam_count_prefix_sums, out_sequence);
 }
