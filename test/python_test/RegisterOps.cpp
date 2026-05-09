@@ -163,6 +163,46 @@ at::Tensor recurrent_gated_delta_rule(
 
     return outResult;
 }
+
+std::tuple<at::Tensor, at::Tensor> rec_constrained_topk_impl_npu(
+    const at::Tensor& logits,
+    const at::Tensor& sequence_group,
+    const at::Tensor& first_token_ids,
+    const at::Tensor& prefix1_offsets,
+    const at::Tensor& prefix1_values,
+    const at::Tensor& prefix1_pair_keys,
+    const at::Tensor& prefix2_value_offsets,
+    const at::Tensor& prefix2_values,
+    const at::Tensor& temperatures,
+    int64_t current_step,
+    int64_t top_k,
+    int64_t max_prefix1_degree,
+    int64_t max_prefix2_degree) {
+  at::Tensor out_tokens =
+      at::empty({logits.size(0), top_k},
+                logits.options().dtype(at::ScalarType::Int));
+  at::Tensor out_logprobs =
+      at::empty({logits.size(0), top_k},
+                logits.options().dtype(at::ScalarType::Float));
+  EXEC_NPU_CMD(aclnnRecConstrainedTopK,
+               logits,
+               sequence_group,
+               first_token_ids,
+               prefix1_offsets,
+               prefix1_values,
+               prefix1_pair_keys,
+               prefix2_value_offsets,
+               prefix2_values,
+               temperatures,
+               current_step,
+               top_k,
+               max_prefix1_degree,
+               max_prefix2_degree,
+               out_tokens,
+               out_logprobs);
+  return std::make_tuple(out_tokens, out_logprobs);
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("select_unshared_kv", &select_unshared_kv_impl_npu, "select_unshared_kv");
   m.def("cache_unshared_kv", &cache_unshared_kv_impl_npu, "cache_unshared_kv");
@@ -170,5 +210,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("beam_search_group", &beam_search_group_impl_npu, "beam_search_group");
   m.def("causal_conv1d", &causal_conv1d, "causal_conv1d");
   m.def("recurrent_gated_delta_rule", &recurrent_gated_delta_rule, "recurrent_gated_delta_rule");
+  m.def("rec_constrained_topk", &rec_constrained_topk_impl_npu, "rec_constrained_topk");
 }
-

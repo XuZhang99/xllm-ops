@@ -52,3 +52,26 @@ def recurrent_gated_delta_rule_npu(query, key, value, state, beta,
                                 num_accepted_tokens,
                                 g,
                                 gk)
+
+
+def rec_constrained_topk_npu(logits, sequence_group, first_token_ids,
+                             prefix1_offsets, prefix1_values,
+                             prefix1_pair_keys, prefix2_value_offsets,
+                             prefix2_values, temperatures, current_step,
+                             top_k, max_prefix1_degree,
+                             max_prefix2_degree):
+    return custom_ops_lib.rec_constrained_topk(
+        logits,
+        sequence_group,
+        first_token_ids,
+        prefix1_offsets,
+        prefix1_values,
+        prefix1_pair_keys,
+        prefix2_value_offsets,
+        prefix2_values,
+        temperatures,
+        current_step,
+        top_k,
+        max_prefix1_degree,
+        max_prefix2_degree,
+    )
