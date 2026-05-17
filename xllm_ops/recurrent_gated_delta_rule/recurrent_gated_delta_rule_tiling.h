@@ -16,7 +16,7 @@
 #include <tiling/tiling_api.h>
 #include "register/tilingdata_base.h"
 #include "tiling_base.h"
-#include "error_log.h"
+#include "error/error_log.h"
 #include "recurrent_gated_delta_rule_tiling_data.h"
 
 namespace optiling {

@@ -20,7 +20,7 @@
 #include <memory>
 #include "exe_graph/runtime/tiling_context.h"
 #include "tiling_base.h"
-#include "error_log.h"
+#include "error/error_log.h"
 
 namespace Ops {
 namespace Transformer {

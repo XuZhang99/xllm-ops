@@ -19,7 +19,7 @@
 #include <exe_graph/runtime/tiling_context.h>
 #include <graph/utils/type_utils.h>
 #include "tiling/platform/platform_ascendc.h"
-#include "error_log.h"
+#include "error/error_log.h"
 
 #ifdef ASCENDC_OP_TEST
 #define ASCENDC_EXTERN_C extern "C"

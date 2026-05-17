@@ -14,7 +14,7 @@
 
 #include "causal_conv1d_tiling_utils.h"
 #include "causal_conv1d_tiling_data.h"
-#include "error_log.h"
+#include "error/error_log.h"
 
 namespace optiling::causal_conv1d_host {
 

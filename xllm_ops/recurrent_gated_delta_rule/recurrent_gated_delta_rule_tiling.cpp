@@ -16,7 +16,7 @@
 #include "tiling_templates_registry.h"
 #include "register/op_def_registry.h"
 #include "platform/platform_infos_def.h"
-#include "error_log.h"
+#include "error/error_log.h"
 #include "tiling/platform/platform_ascendc.h"
 #include "math_util.h"
 #include <array>

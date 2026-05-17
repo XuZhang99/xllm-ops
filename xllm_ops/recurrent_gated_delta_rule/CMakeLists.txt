@@ -23,6 +23,7 @@ target_sources(optiling PRIVATE
 
 target_include_directories(optiling PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/common/
 )
 
 # opproto
@@ -32,6 +33,7 @@ target_sources(opsproto PRIVATE
 
 target_include_directories(opsproto PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/common/
 )
 
 install(FILES recurrent_gated_delta_rule.cpp
