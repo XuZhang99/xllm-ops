@@ -241,6 +241,11 @@ if (BUILD_OPEN_PROJECT)
                 OP_NAME "ALL"
                 OPTIONS ${OPS_COMPILE_OPTIONS}
         )
+        # 静默 CANN 内部头文件 #pragma message 噪声（kernel_operator_reg_others_impl.h 等）
+        add_ops_compile_options(
+                OP_NAME "ALL"
+                OPTIONS "-Wno-#pragma-messages"
+        )
     endif()
 endif ()
 

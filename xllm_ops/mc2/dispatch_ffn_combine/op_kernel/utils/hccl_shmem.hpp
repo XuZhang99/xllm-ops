@@ -7,7 +7,6 @@
 
 #ifdef HCCL_COMM
 #include "moe_distribute_base.h"
-using namespace AscendC::HcclContextDef;
 
 #else
 #include "shmem_api.h"
