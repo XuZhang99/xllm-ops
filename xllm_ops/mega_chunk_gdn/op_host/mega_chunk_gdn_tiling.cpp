@@ -164,6 +164,15 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context)
     return ge::GRAPH_SUCCESS;
 }
 
+struct MegaChunkGdnCompileInfo {};
+
+static ge::graphStatus TilingParseForMegaChunkGdn(gert::TilingParseContext *context)
+{
+    (void)context;
+    return ge::GRAPH_SUCCESS;
+}
+
 IMPL_OP_OPTILING(MegaChunkGdn)
-    .Tiling(TilingFunc);
+    .Tiling(TilingFunc)
+    .TilingParse<MegaChunkGdnCompileInfo>(TilingParseForMegaChunkGdn);
 }  // namespace optiling

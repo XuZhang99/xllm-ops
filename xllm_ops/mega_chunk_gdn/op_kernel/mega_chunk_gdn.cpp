@@ -37,6 +37,17 @@
 #include <type_traits>
 using namespace pto;
 
+struct MegaChunkGdnKernelTilingData {
+    uint32_t block_dim;
+    uint32_t num_matrices;
+    uint32_t num_heads;
+    uint32_t num_key_heads;
+    int64_t has_initial_state;
+    int64_t batch_size;
+    int64_t seq_len;
+    int64_t total_tokens;
+};
+
 // ===================================================================
 // Device-only helpers (shared with standard mega-kernel)
 // ===================================================================
@@ -446,7 +457,8 @@ GDN_KERNEL_NAME(GM_ADDR q_ptr, GM_ADDR k_ptr, GM_ADDR v_ptr, GM_ADDR g_in_ptr, G
                 GM_ADDR A_inv_f32_ptr, GM_ADDR A_inv_ptr, GM_ADDR w_ptr, GM_ADDR u_ptr, GM_ADDR s_ptr,
                 GM_ADDR v_new_ptr, GM_ADDR fs_ptr, GM_ADDR workspace, GM_ADDR tiling)
 {
-    GET_TILING_DATA(tiling_data, tiling);
+    REGISTER_TILING_DEFAULT(MegaChunkGdnKernelTilingData);
+    GET_TILING_DATA_WITH_STRUCT(MegaChunkGdnKernelTilingData, tiling_data, tiling);
     GM_ADDR user_ws = AscendC::GetUserWorkspace(workspace);
     const uint64_t tile_bytes = static_cast<uint64_t>(GDN_C) * GDN_C * sizeof(half);
 
