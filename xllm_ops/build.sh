@@ -364,6 +364,31 @@ function clean()
     mkdir -p ${BUILD_DIR} ${OUTPUT_DIR}
 }
 
+function ensure_cmake_cache_compatible()
+{
+    # Only auto-clear caller-provided xllm_ops cache, such as CI's XLLM_OPS_CACHE
+    # passed through XLLM_OPS_BUILD_DIR. Keep the default local build dir behavior unchanged.
+    if [ -z "${XLLM_OPS_BUILD_DIR}" ];then
+        return
+    fi
+
+    local cache_file="${BUILD_DIR}/CMakeCache.txt"
+    if [ ! -f "${cache_file}" ];then
+        return
+    fi
+
+    local cached_source
+    cached_source=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "${cache_file}")
+    if [ -z "${cached_source}" ] || [ "$(realpath -m "${cached_source}")" == "$(realpath -m "${CURRENT_DIR}")" ];then
+        return
+    fi
+
+    log "Info: XLLM_OPS_BUILD_DIR is set, clear stale xllm_ops CMake cache before configure: ${BUILD_DIR}"
+    log "Info: cached source=${cached_source}, current source=${CURRENT_DIR}"
+    rm -rf -- "${BUILD_DIR}"
+    mkdir -p -- "${BUILD_DIR}"
+}
+
 function clean_build_out()
 {
     if [ -n "${BUILD_OUT_DIR}" ];then
@@ -1401,6 +1426,7 @@ CUSTOM_OPTION="${CUSTOM_OPTION} -DCUSTOM_ASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_
 set_env
 
 clean
+ensure_cmake_cache_compatible
 
 if [ -n "${CCACHE_PROGRAM}" ]; then
     if [ "${CCACHE_PROGRAM}" == "false" ] || [ "${CCACHE_PROGRAM}" == "off" ]; then
