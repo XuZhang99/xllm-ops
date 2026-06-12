@@ -386,7 +386,7 @@ function cmake_config()
 {
     local extra_option="$1"
     log "Info: cmake config ${CUSTOM_OPTION} ${extra_option} ${CURRENT_DIR}"
-    cmake "${CURRENT_DIR}"  ${CUSTOM_OPTION} ${extra_option}
+    stdbuf -oL cmake "${CURRENT_DIR}"  ${CUSTOM_OPTION} ${extra_option}
 }
 
 function build()
@@ -397,7 +397,7 @@ function build()
     fi
     export LD_LIBRARY_PATH=${BUILD_DIR}:$LD_LIBRARY_PATH
     
-    cmake --build . --target ${target} ${JOB_NUM} ${option}
+    stdbuf -oL cmake --build . --target ${target} ${JOB_NUM} ${option}
     if [ $? -ne 0 ]; then echo "[ERROR] build failed!" && exit 1; fi
 }
 
@@ -554,11 +554,11 @@ build_lib() {
     mkdir -p "${BUILD_PATH}"
   fi
 
-  cd "${BUILD_PATH}" && cmake .. ${CUSTOM_OPTION} -DENABLE_BUILT_IN=ON
+  cd "${BUILD_PATH}" && stdbuf -oL cmake .. ${CUSTOM_OPTION} -DENABLE_BUILT_IN=ON
 
   for lib in "${BUILD_LIBS[@]}"; do
     echo "Building target ${lib}"
-    cmake --build . --target ${lib} ${JOB_NUM}
+    stdbuf -oL cmake --build . --target ${lib} ${JOB_NUM}
   done
 
   echo $dotted_line
@@ -572,14 +572,14 @@ build_static_lib() {
     echo "Start to build static lib."
 
     git submodule init && git submodule update
-    cd "${BUILD_PATH}" && cmake ${CUSTOM_OPTION} .. -DENABLE_STATIC=ON -DASCEND_COMPUTE_UNIT=${unit}
+    cd "${BUILD_PATH}" && stdbuf -oL cmake ${CUSTOM_OPTION} .. -DENABLE_STATIC=ON -DASCEND_COMPUTE_UNIT=${unit}
     local all_targets=$(cmake --build . --target help)
     rm -fr ${BUILD_PATH}/bin_tmp
     mkdir -p ${BUILD_PATH}/bin_tmp
     if echo "${all_targets}" | grep -wq "ophost_xllm_static"; then
-        cmake --build . --target ophost_xllm_static ${JOB_NUM}
+        stdbuf -oL cmake --build . --target ophost_xllm_static ${JOB_NUM}
     fi
-    cmake --build . --target opapi_xllm_static ${JOB_NUM}
+    stdbuf -oL cmake --build . --target opapi_xllm_static ${JOB_NUM}
     local jit_command=""
     if [[ "$ENABLE_BUILT_JIT" == "TRUE" ]]; then
         jit_command="-j"
@@ -589,8 +589,8 @@ build_static_lib() {
     python3 "${BASE_PATH}/../scripts/util/build_opp_kernel_static.py" GenStaticOpResourceIni -s ${unit} -b ${BUILD_PATH} ${jit_command}   
     python3 "${BASE_PATH}/../scripts/util/build_opp_kernel_static.py" StaticCompile -s ${unit} -b ${BUILD_PATH} -n=0 -a=${ARCH_INFO} ${jit_command}
 
-    cd "${BUILD_PATH}" && cmake ${CUSTOM_OPTION} .. -DENABLE_STATIC=ON -DASCEND_COMPUTE_UNIT=${unit}
-    cmake --build . --target cann_xllm_static ${JOB_NUM}
+    cd "${BUILD_PATH}" && stdbuf -oL cmake ${CUSTOM_OPTION} .. -DENABLE_STATIC=ON -DASCEND_COMPUTE_UNIT=${unit}
+    stdbuf -oL cmake --build . --target cann_xllm_static ${JOB_NUM}
     echo "Build static lib success!"
 }
 
@@ -1427,14 +1427,14 @@ build_ut() {
   if [ ! -d "${BUILD_DIR}" ]; then
     mkdir -p "${BUILD_DIR}"
   fi
-  cd "${BUILD_DIR}" && cmake ${CUSTOM_OPTION} "${CURRENT_DIR}"
+  cd "${BUILD_DIR}" && stdbuf -oL cmake ${CUSTOM_OPTION} "${CURRENT_DIR}"
 
   local target="$1"
   if [ "${VERBOSE}" == "true" ]; then
     local option="--verbose"
   fi
   if [ $(cmake -LA -N . | grep 'UTEST_FRAMEWORK_OLD:BOOL=' | cut -d'=' -f2) == "TRUE" ]; then
-    cmake --build . --target ${target} ${JOB_NUM} ${option}
+    stdbuf -oL cmake --build . --target ${target} ${JOB_NUM} ${option}
   fi
 
   if [ $(cmake -LA -N . | grep 'UTEST_FRAMEWORK_NEW:BOOL=' | cut -d'=' -f2) == "TRUE" ]; then
@@ -1442,7 +1442,7 @@ build_ut() {
     for UT_TARGET in ${UT_TARGETS[@]} ; do
         if cmake --build . --target help | grep -w "$UT_TARGET"; then
             echo "Building target: $UT_TARGET."
-            if ! cmake --build . --target ${UT_TARGET} -j $CORE_NUMS; then
+            if ! stdbuf -oL cmake --build . --target ${UT_TARGET} -j $CORE_NUMS; then
                 echo "[ERROR] Build failed for target: $UT_TARGET."
                 exit 1
             fi
@@ -1622,4 +1622,4 @@ else
         build ${BUILD}
     fi
 fi
-} | awk '{print strftime("[%Y-%m-%d %H:%M:%S]"), $0}'
+} | stdbuf -oL awk '{print strftime("[%Y-%m-%d %H:%M:%S]"), $0; fflush()}'

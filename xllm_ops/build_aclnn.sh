@@ -280,6 +280,7 @@ dump_selected_ops
 
 (
   set -euo pipefail
+  exec > >(stdbuf -oL cat)
 
   log "subshell cwd before cd=$(pwd)"
   #cd csrc
