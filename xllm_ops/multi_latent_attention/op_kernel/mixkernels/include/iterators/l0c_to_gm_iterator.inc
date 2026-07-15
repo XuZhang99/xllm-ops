@@ -22,7 +22,17 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, half, float> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        // A5 architecture: use FixpipeParamsArch3510<ROW_MAJOR>, F322F16 mode does not require cbufWorkspace
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::ROW_MAJOR> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride);   // dstStride
+        intriParams.quantPre = QuantMode_t::F322F16;
+        AscendC::Fixpipe<half, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -32,6 +42,7 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, half, float> {
         intriParams.quantPre = QuantMode_t::F322F16;
         AscendC::Fixpipe<half, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
 #else
+        // Other architectures: use FixpipeParams
         AscendC::FixpipeParams<float> intriParams(
             (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
             static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(float) / BLOCK_SIZE_INT8),
@@ -53,7 +64,22 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, half, int32_t> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+        // VDEQF16 mode requires cbufWorkspace, but L0C->GM path does not support this mode
+        // For A5 and V220 architectures, use scalar quantization DEQF16 instead
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::ROW_MAJOR> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride);   // dstStride
+        // A5 L0C->GM path does not support VDEQF16 (Vector Quant), use DEQF16 (Scalar Quant) instead
+        // Note: deqScalar needs to set quantization parameters
+        intriParams.quantPre = QuantMode_t::DEQF16;
+        // TODO: set deqScalar quantization parameters
+        // intriParams.deqScalar = scaleValue;
+        AscendC::Fixpipe<half, int32_t, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -63,6 +89,7 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, half, int32_t> {
         intriParams.quantPre = QuantMode_t::VDEQF16;
         AscendC::Fixpipe<half, int32_t, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
 #else
+        // Other architectures: VDEQF16 mode not supported yet
         AscendC::FixpipeParams<int32_t> intriParams(
             (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
             static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(float) / BLOCK_SIZE_INT8),
@@ -84,7 +111,17 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, __bf16, float> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        // A5 architecture: use FixpipeParamsArch3510<ROW_MAJOR>, F322BF16 mode
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::ROW_MAJOR> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride);   // dstStride
+        intriParams.quantPre = QuantMode_t::F322BF16;
+        AscendC::Fixpipe<__bf16, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -94,6 +131,7 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, __bf16, float> {
         intriParams.quantPre = QuantMode_t::F322BF16;
         AscendC::Fixpipe<__bf16, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
 #else
+        // Other architectures: use FixpipeParams
         AscendC::FixpipeParams<float> intriParams(
             (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
             static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(float) / BLOCK_SIZE_INT8),
@@ -116,7 +154,17 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, float, float> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        // A5 architecture: use FixpipeParamsArch3510<ROW_MAJOR>, NoQuant mode
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::ROW_MAJOR> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride);   // dstStride
+        intriParams.quantPre = QuantMode_t::NoQuant;
+        AscendC::Fixpipe<float, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -126,6 +174,7 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, float, float> {
         intriParams.quantPre = QuantMode_t::NoQuant;
         AscendC::Fixpipe<float, float, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
 #else
+        // Other architectures: use FixpipeParams
         AscendC::FixpipeParams<float> intriParams(
             (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
             static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(float) / BLOCK_SIZE_INT8),
@@ -147,7 +196,17 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::NZ, half, float> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        // A5 architecture: use FixpipeParamsArch3510<NZ>, NZ2NZ mode
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::NZ> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride - (nTileActual * sizeof(half) / sizeof(float)));  // dstStride unit is element
+        intriParams.quantPre = QuantMode_t::F322F16;
+        AscendC::Fixpipe<half, float, AscendC::CFG_NZ>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -157,6 +216,7 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::NZ, half, float> {
         intriParams.quantPre = QuantMode_t::F322F16;
         AscendC::Fixpipe<half, float, AscendC::CFG_NZ>(gmTensor, l0cTensor, intriParams);
 #else
+        // Other architectures: use FixpipeParams
         AscendC::FixpipeParams<float> intriParams(
             (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
             static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(float) / BLOCK_SIZE_INT8),
@@ -177,7 +237,17 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, int32_t, int32_t> {
                          uint32_t srcStride,
                          uint32_t dstStride)
     {
-#ifdef __DAV_C220_CUBE__
+#if defined(__NPU_ARCH__) && (__NPU_ARCH__ == 3510)
+        // A5 architecture: use FixpipeParamsArch3510<ROW_MAJOR>, NoQuant mode
+        AscendC::FixpipeParamsArch3510<AscendC::CO2Layout::ROW_MAJOR> intriParams(
+            nTileActual,  // nSize
+            mTileActual,  // mSize
+            srcStride,    // srcStride
+            dstStride);   // dstStride
+        intriParams.quantPre = QuantMode_t::NoQuant;
+        AscendC::Fixpipe<int32_t, int32_t, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#elif defined(__DAV_C220_CUBE__)
+        // V220 architecture (A2/A3): use FixpipeParamsV220
         auto intriParams = AscendC::FixpipeParamsV220(nTileActual, // nSize
                                                       mTileActual, // mSize
                                                       srcStride,   // srcStride
@@ -186,6 +256,16 @@ struct l0c_to_gm<ArchType::ASCEND_V220, DataFormat::ND, int32_t, int32_t> {
 
         intriParams.quantPre = QuantMode_t::NoQuant;
         AscendC::Fixpipe<int32_t, int32_t, AscendC::CFG_ROW_MAJOR>(gmTensor, l0cTensor, intriParams);
+#else
+        // Other architectures: use FixpipeParams
+        AscendC::FixpipeParams<int32_t> intriParams(
+            (nTileActual + BLOCK_NUM - 1) / AscendC::BLOCK_CUBE,
+            static_cast<uint16_t>(mTileActual * BLOCK_NUM * sizeof(int32_t) / BLOCK_SIZE_INT8),
+            0,
+            dstStride);
+        intriParams.nz2ndParams = {true, 1, 0, 0, static_cast<uint16_t>(nTileActual)};
+        intriParams.quantParams = {QuantMode_t::NoQuant};
+        AscendC::Fixpipe(gmTensor, l0cTensor, intriParams);
 #endif
     };
 };
