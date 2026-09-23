@@ -17,55 +17,70 @@ limitations under the License.
 #define OPTILING_PARAMS_PREPROCESS_TILING
 
 #include <cstdint>
-#include <string>
 #include <sstream>
+#include <string>
+
+#include "mla_preprocess_tilingdata.h"
+#include "register/op_impl_registry.h"
 #include "register/tilingdata_base.h"
 #include "tiling/tiling_api.h"
-#include "register/op_impl_registry.h"
-#include "mla_preprocess_tilingdata.h"
 
 namespace optiling {
 namespace OpParam {
 struct MlaPreprocessParam {
-    enum class QuantMode : uint64_t {
-        PER_TENSOR_ASYMM_QUANT = 0,
-        PER_TOKEN_SYMM_QUANT,
-        PER_TOKEN_ASYMM_QUANT,
-        NO_QUANT,
-    };
-    uint64_t N = 128;
-    uint64_t headNum = 0;
-    uint64_t cacheMode = 0;
-    QuantMode quantMode = QuantMode::PER_TENSOR_ASYMM_QUANT;
-    bool operator==(const MlaPreprocessParam &other) const
-    {
-        return N == other.N && headNum == other.headNum && cacheMode == other.cacheMode && quantMode == other.quantMode;
-    }
+  enum class QuantMode : uint64_t {
+    PER_TENSOR_ASYMM_QUANT = 0,
+    PER_TOKEN_SYMM_QUANT,
+    PER_TOKEN_ASYMM_QUANT,
+    NO_QUANT,
+  };
+  uint64_t N = 128;
+  uint64_t headNum = 0;
+  uint64_t qLoraRank = 1536;
+  uint64_t qkNopeHeadDim = 128;
+  uint64_t cacheMode = 0;
+  QuantMode quantMode = QuantMode::PER_TENSOR_ASYMM_QUANT;
+  bool operator==(const MlaPreprocessParam& other) const {
+    return N == other.N && headNum == other.headNum &&
+           qLoraRank == other.qLoraRank &&
+           qkNopeHeadDim == other.qkNopeHeadDim &&
+           cacheMode == other.cacheMode && quantMode == other.quantMode;
+  }
 };
-} // namespace OpParam
+}  // namespace OpParam
 
 struct MlaPreProcessCompileInfo {};
 
 class MlaPreprocessTiling {
-public:
-    optiling::MlaTilingData mlaTilingData;
+ public:
+  optiling::MlaTilingData mlaTilingData;
 
-    ge::graphStatus Init(gert::TilingContext *context);
+  ge::graphStatus Init(gert::TilingContext* context);
 
-    void RmsNormQuantTiling(const uint64_t numTokens, const uint64_t numVectorCore, const uint64_t hiddtenState);
-    void RopeConcatTiling(const OpParam::MlaPreprocessParam &param, const uint64_t &aicNum);
-    void EinSumQuantTiling(const OpParam::MlaPreprocessParam &param, const uint64_t &aicNum,
-                           const ge::DataType inDtype, const bool doRmsQuant);
-    void SetTilingKey(const ge::DataType inDtype, const OpParam::MlaPreprocessParam &param, const bool doRmsQuant,
-                      gert::TilingContext *context);
-    void SetMlapoWorkSpace(const ge::DataType inDtype, const OpParam::MlaPreprocessParam &param,
-                           uint32_t sysWorkSpaceSize, gert::TilingContext *context);
-    void PrintTilingData(gert::TilingContext *context);
-    void PrintFirstTilingData(gert::TilingContext *context);
-    void PrintLastTilingData(gert::TilingContext *context);
-    OpParam::MlaPreprocessParam GetParam(gert::TilingContext *context);
+  void RmsNormQuantTiling(const uint64_t numTokens,
+                          const uint64_t numVectorCore,
+                          const uint64_t hiddtenState,
+                          const uint64_t qLoraRank);
+  void RopeConcatTiling(const OpParam::MlaPreprocessParam& param,
+                        const uint64_t& aicNum);
+  void EinSumQuantTiling(const OpParam::MlaPreprocessParam& param,
+                         const uint64_t& aicNum,
+                         const ge::DataType inDtype,
+                         const bool doRmsQuant);
+  void SetTilingKey(const ge::DataType inDtype,
+                    const OpParam::MlaPreprocessParam& param,
+                    const bool doRmsQuant,
+                    gert::TilingContext* context);
+  void SetMlapoWorkSpace(const ge::DataType inDtype,
+                         const OpParam::MlaPreprocessParam& param,
+                         uint32_t sysWorkSpaceSize,
+                         gert::TilingContext* context);
+  void PrintTilingData(gert::TilingContext* context);
+  void PrintFirstTilingData(gert::TilingContext* context);
+  void PrintLastTilingData(gert::TilingContext* context);
+  OpParam::MlaPreprocessParam GetParam(gert::TilingContext* context);
 };
 
-} // namespace optiling
+}  // namespace optiling
 
-#endif // OPTILING_PARAMS_MLA_PRE_H
+#endif  // OPTILING_PARAMS_MLA_PRE_H

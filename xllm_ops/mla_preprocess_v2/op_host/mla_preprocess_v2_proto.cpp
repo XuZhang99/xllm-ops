@@ -1,12 +1,13 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * This program is free software, you can redistribute it and/or modify it under
+the terms and conditions of  * CANN Open Software License Agreement Version 2.0
+(the "License").  * Please refer to the License for details. You may not use
+this file except in compliance with the License.  * THIS SOFTWARE IS PROVIDED ON
+AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,  *
+INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A
+PARTICULAR PURPOSE.  * See LICENSE in the root of the software repository for
+the full text of the License.  */
 
 /*!
  * \file mla_preprocess_v2_infershape.cpp
@@ -14,7 +15,7 @@
  */
 
 #include <register/op_impl_registry.h>
-//#include "log/log.h"
+// #include "log/log.h"
 
 using namespace ge;
 namespace ops {
@@ -22,6 +23,7 @@ namespace ops {
 constexpr size_t ATTR_CACHE_MODE = 9;
 
 constexpr size_t INPUT_INPUT = 0;
+constexpr size_t INPUT_GAMMA1 = 8;
 constexpr size_t INPUT_WUK = 18;
 constexpr size_t INPUT_KV_CACHE = 19;
 constexpr size_t INPUT_KV_CACHE_ROPE = 20;
@@ -36,21 +38,22 @@ constexpr size_t DIM_THREE = 3;
 constexpr size_t DIM_SHAPE_Q = 512;
 constexpr size_t DIM_SHAPE_QR = 64;
 constexpr size_t DIM_SHAPE_Q_CACHE = 576;
-constexpr size_t DIM_SHAPE_Q_DOWN = 1536;
 
-static ge::graphStatus InferShapeMlaPreprocessV2(gert::InferShapeContext* context) {
-  //OP_LOGD(context->GetNodeName(), "Begin to do InferShapeMlaPreprocessV2.");
+static ge::graphStatus InferShapeMlaPreprocessV2(
+    gert::InferShapeContext* context) {
+  // OP_LOGD(context->GetNodeName(), "Begin to do InferShapeMlaPreprocessV2.");
   auto attrs = context->GetAttrs();
-  //OP_CHECK_NULL_WITH_CONTEXT(context, attrs);
+  // OP_CHECK_NULL_WITH_CONTEXT(context, attrs);
 
-  const int64_t *cacheModePtr = attrs->GetAttrPointer<int64_t>(ATTR_CACHE_MODE);
+  const int64_t* cacheModePtr = attrs->GetAttrPointer<int64_t>(ATTR_CACHE_MODE);
   if (cacheModePtr == nullptr) {
     return ge::GRAPH_FAILED;
   }
   const int64_t cacheMode = *cacheModePtr;
-  
+
   const gert::Shape* kvCacheShape = context->GetInputShape(INPUT_KV_CACHE);
-  const gert::Shape* kvCacheRopeShape = context->GetInputShape(INPUT_KV_CACHE_ROPE);
+  const gert::Shape* kvCacheRopeShape =
+      context->GetInputShape(INPUT_KV_CACHE_ROPE);
   const gert::Shape* inputShape = context->GetInputShape(INPUT_INPUT);
   const gert::Shape* wukShape = context->GetInputShape(INPUT_WUK);
 
@@ -68,8 +71,8 @@ static ge::graphStatus InferShapeMlaPreprocessV2(gert::InferShapeContext* contex
   qOutShape->SetDim(1, headNum);
 
   qDownOutShape->SetDimNum(DIM_TWO);
-  qOutShape->SetDim(0, tokenNum);
-  qOutShape->SetDim(1, DIM_SHAPE_Q_DOWN);
+  qDownOutShape->SetDim(0, tokenNum);
+  qDownOutShape->SetDim(1, context->GetInputShape(INPUT_GAMMA1)->GetDim(0));
 
   if (cacheMode != 0) {
     gert::Shape* qRopeOutShape = context->GetOutputShape(OUTPUT_Q_ROPE_OUT);
@@ -90,12 +93,13 @@ static ge::graphStatus InferShapeMlaPreprocessV2(gert::InferShapeContext* contex
   return ge::GRAPH_SUCCESS;
 }
 
-static ge::graphStatus InferDataTypeMlaPreprocessV2(gert::InferDataTypeContext* context) {
-  //OP_LOGD(context->GetNodeName(), "Begin to do InferDataTypeMlaPreprocess.");
+static ge::graphStatus InferDataTypeMlaPreprocessV2(
+    gert::InferDataTypeContext* context) {
+  // OP_LOGD(context->GetNodeName(), "Begin to do InferDataTypeMlaPreprocess.");
   auto attrs = context->GetAttrs();
-  //OP_CHECK_NULL_WITH_CONTEXT(context, attrs);
+  // OP_CHECK_NULL_WITH_CONTEXT(context, attrs);
 
-  const int64_t *cacheModePtr = attrs->GetAttrPointer<int64_t>(ATTR_CACHE_MODE);
+  const int64_t* cacheModePtr = attrs->GetAttrPointer<int64_t>(ATTR_CACHE_MODE);
   if (cacheModePtr == nullptr) {
     return ge::GRAPH_FAILED;
   }
@@ -110,10 +114,12 @@ static ge::graphStatus InferDataTypeMlaPreprocessV2(gert::InferDataTypeContext* 
     context->SetOutputDataType(OUTPUT_Q_ROPE_OUT, inputDtype);
     context->SetOutputDataType(OUTPUT_KR_CACHE_OUT, inputDtype);
   }
-  //OP_LOGD(context->GetNodeName(), "End to do InferDataTypeMlaPreprocessV2.");
+  // OP_LOGD(context->GetNodeName(), "End to do InferDataTypeMlaPreprocessV2.");
   return ge::GRAPH_SUCCESS;
 }
 
-IMPL_OP_INFERSHAPE(MlaPreprocessV2).InferShape(InferShapeMlaPreprocessV2).InferDataType(InferDataTypeMlaPreprocessV2);
+IMPL_OP_INFERSHAPE(MlaPreprocessV2)
+    .InferShape(InferShapeMlaPreprocessV2)
+    .InferDataType(InferDataTypeMlaPreprocessV2);
 
 }  // namespace ops
